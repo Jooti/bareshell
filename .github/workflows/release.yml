@@ -1,0 +1,95 @@
+name: Android release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3 # v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@0b6dd653ba04f4f93bf581ec31e66cbd7dcb644d # v4
+      - name: Install Android SDK packages
+        run: |
+          set -euo pipefail
+          sdkmanager "platforms;android-36" "build-tools;36.0.0"
+      - name: Test release automation
+        run: node --test .github/scripts/release.test.cjs
+      - name: Test and lint
+        run: |
+          bash ./gradlew --no-daemon :app:testDebugUnitTest :app:lintDebug \
+            -PciVersionName="0.1.${GITHUB_RUN_NUMBER}" \
+            -PciVersionCode="$((GITHUB_RUN_NUMBER + 1))"
+      - name: Build and verify signed APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name}" ]]; then
+              echo "::error::Missing required signing secret: ${name}"
+              exit 1
+            fi
+          done
+          export ANDROID_KEYSTORE_PATH="${RUNNER_TEMP}/release-keystore.jks"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          unset ANDROID_KEYSTORE_BASE64
+          bash ./gradlew --no-daemon :app:assembleRelease \
+            -PciVersionName="0.1.${GITHUB_RUN_NUMBER}" \
+            -PciVersionCode="$((GITHUB_RUN_NUMBER + 1))"
+          apk=app/build/outputs/apk/release/app-release.apk
+          tools="${ANDROID_HOME}/build-tools/36.0.0"
+          "$tools/apksigner" verify --verbose "$apk"
+          "$tools/aapt" dump badging "$apk" > "${RUNNER_TEMP}/release-badging.txt"
+          grep -F "package: name='net.jooti.bareshell' versionCode='$((GITHUB_RUN_NUMBER + 1))' versionName='0.1.${GITHUB_RUN_NUMBER}'" \
+            "${RUNNER_TEMP}/release-badging.txt"
+          mkdir -p release-assets
+          cp "$apk" "release-assets/BareShell-0.1.${GITHUB_RUN_NUMBER}.apk"
+          cd release-assets
+          sha256sum "BareShell-0.1.${GITHUB_RUN_NUMBER}.apk" > "BareShell-0.1.${GITHUB_RUN_NUMBER}.apk.sha256"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: release-assets
+          path: release-assets/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          name: release-assets
+          path: release-assets
+      - name: Verify checksum
+        working-directory: release-assets
+        run: sha256sum --check "BareShell-0.1.${GITHUB_RUN_NUMBER}.apk.sha256"
+      - name: Publish release
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        with:
+          script: |
+            const { publishRelease } = require('./.github/scripts/release.cjs');
+            await publishRelease({ github, context, core, artifactDir: 'release-assets' });

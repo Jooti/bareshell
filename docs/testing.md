@@ -17,6 +17,39 @@ For a focused task-model iteration:
 .\gradlew.bat :app:testDebugUnitTest --tests net.jooti.bareshell.LauncherTaskTest
 ```
 
+### Release automation
+
+Run publication/versioning tests without credentials or GitHub writes:
+
+```powershell
+node --test .github\scripts\release.test.cjs
+```
+
+These tests cover run-based versions and Android limits, checksum validation,
+exact-commit tags, draft retries, upload failures, published-release reruns,
+conflicting tags, and API failures. They use temporary fixtures, not real APKs.
+The main-branch workflow runs them alongside the existing Android checks.
+
+For Gradle version overrides, pass both properties, for example:
+
+```powershell
+.\gradlew.bat :app:assembleDebug -PciVersionName=0.1.123 -PciVersionCode=124
+```
+
+Also check that malformed versions, out-of-range codes, and supplying only one
+property fail. Test signed release builds only with a disposable test keystore,
+not the production key. Set the four signing environment variables described in
+[Development](development.md), run `:app:assembleRelease`, and use SDK
+`apksigner verify --verbose` and `aapt dump badging` to check the resulting APK's
+signature, application ID, versionName, and versionCode. Check that partial
+signing inputs fail and that debug assembly still works with those variables
+unset. Remove the temporary key and clear the test environment afterward.
+
+Workflow syntax can be checked with `actionlint` when available. Local checks
+cannot verify repository permissions, tag rulesets, or Actions secrets: after
+setup, confirm a real `main` run publishes both assets, verifies their checksum,
+and leaves an already-published release unchanged on rerun.
+
 On an isolated target emulator/phone:
 
 1. Confirm BareShell appears in default Home app settings.
