@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Navigation.Light" parent="">
+        <item name="android:navigationBarColor">?attr/launcherBackground</item>
+        <item name="android:windowLightNavigationBar">true</item>
+    </style>
+    <style name="Navigation.Dark" parent="">
+        <item name="android:navigationBarColor">?attr/launcherBackground</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+</resources>

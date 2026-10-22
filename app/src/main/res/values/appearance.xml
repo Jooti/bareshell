@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <attr name="launcherBackground" format="color" />
+    <attr name="launcherForeground" format="color" />
+    <attr name="launcherMuted" format="color" />
+
+    <style name="Appearance.Light" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="launcherBackground">#FFFFFF</item>
+        <item name="launcherForeground">#000000</item>
+        <item name="launcherMuted">#666666</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:windowBackground">?attr/launcherBackground</item>
+        <item name="android:colorBackground">?attr/launcherBackground</item>
+        <item name="android:colorAccent">?attr/launcherForeground</item>
+        <item name="android:colorControlNormal">?attr/launcherForeground</item>
+        <item name="android:colorControlActivated">?attr/launcherForeground</item>
+        <item name="android:textColorPrimary">?attr/launcherForeground</item>
+        <item name="android:textColorSecondary">?attr/launcherMuted</item>
+        <item name="android:textColorHint">?attr/launcherMuted</item>
+        <item name="android:statusBarColor">?attr/launcherBackground</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:alertDialogTheme">@style/AppearanceDialog.Light</item>
+        <item name="android:datePickerDialogTheme">@style/AppearanceDialog.Light</item>
+    </style>
+    <style name="Appearance.Dark" parent="android:style/Theme.Material.NoActionBar">
+        <item name="launcherBackground">#121212</item>
+        <item name="launcherForeground">#FFFFFF</item>
+        <item name="launcherMuted">#AAAAAA</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowBackground">?attr/launcherBackground</item>
+        <item name="android:colorBackground">?attr/launcherBackground</item>
+        <item name="android:colorAccent">?attr/launcherForeground</item>
+        <item name="android:colorControlNormal">?attr/launcherForeground</item>
+        <item name="android:colorControlActivated">?attr/launcherForeground</item>
+        <item name="android:textColorPrimary">?attr/launcherForeground</item>
+        <item name="android:textColorSecondary">?attr/launcherMuted</item>
+        <item name="android:textColorHint">?attr/launcherMuted</item>
+        <item name="android:statusBarColor">?attr/launcherBackground</item>
+        <item name="android:navigationBarColor">#000000</item>
+        <item name="android:alertDialogTheme">@style/AppearanceDialog.Dark</item>
+        <item name="android:datePickerDialogTheme">@style/AppearanceDialog.Dark</item>
+    </style>
+    <style name="Appearance.Green" parent="Appearance.Dark">
+        <item name="launcherBackground">#081008</item>
+        <item name="launcherForeground">#66FF88</item>
+        <item name="launcherMuted">#83B88D</item>
+    </style>
+    <style name="Appearance.Gray" parent="Appearance.Light">
+        <item name="launcherBackground">#767676</item>
+        <item name="launcherForeground">#000000</item>
+        <item name="launcherMuted">#030303</item>
+    </style>
+    <style name="Font.Monospace" parent="">
+        <item name="android:fontFamily">monospace</item>
+    </style>
+    <style name="AppearanceDialog.Light" parent="android:style/Theme.Material.Light.Dialog.Alert">
+        <item name="android:windowBackground">?attr/launcherBackground</item>
+        <item name="android:colorBackground">?attr/launcherBackground</item>
+        <item name="android:colorAccent">?attr/launcherForeground</item>
+        <item name="android:colorControlNormal">?attr/launcherForeground</item>
+        <item name="android:colorControlActivated">?attr/launcherForeground</item>
+        <item name="android:textColorPrimary">?attr/launcherForeground</item>
+        <item name="android:textColorSecondary">?attr/launcherMuted</item>
+        <item name="android:textColorPrimaryInverse">?attr/launcherBackground</item>
+    </style>
+    <style name="AppearanceDialog.Dark" parent="android:style/Theme.Material.Dialog.Alert">
+        <item name="android:windowBackground">?attr/launcherBackground</item>
+        <item name="android:colorBackground">?attr/launcherBackground</item>
+        <item name="android:colorAccent">?attr/launcherForeground</item>
+        <item name="android:colorControlNormal">?attr/launcherForeground</item>
+        <item name="android:colorControlActivated">?attr/launcherForeground</item>
+        <item name="android:textColorPrimary">?attr/launcherForeground</item>
+        <item name="android:textColorSecondary">?attr/launcherMuted</item>
+        <item name="android:textColorPrimaryInverse">?attr/launcherBackground</item>
+    </style>
+    <style name="Font.System" parent="">
+        <item name="android:fontFamily">sans</item>
+    </style>
+</resources>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="108" height="108" viewBox="0 0 108 108" role="img" aria-labelledby="title">
+  <title id="title">BareShell: a terminal prompt inside a minimal shell</title>
+  <rect width="108" height="108" rx="24" fill="#121212"/>
+  <g fill="none" stroke="#fff" stroke-width="5" stroke-linejoin="round">
+    <path d="M35 28H73Q80 28 80 35V73Q80 80 73 80H43L28 65V35Q28 28 35 28Z"/>
+    <path d="M40 43L51 54L40 65M59 65H68" stroke-linecap="round"/>
+  </g>
+</svg>
