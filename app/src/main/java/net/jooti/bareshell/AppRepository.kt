@@ -99,7 +99,7 @@ internal class AppRepository(private val context: Context) {
             } else {
                 AppEntry(
                     info.packageName,
-                    info.applicationInfo.loadLabel(manager).toString(),
+                    result.loadLabel(manager).toString(),
                     info.name,
                 )
             }

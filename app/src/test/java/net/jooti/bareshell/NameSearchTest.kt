@@ -21,6 +21,54 @@ class NameSearchTest {
     }
 
     @Test
+    fun singleCharacterExactAppNameComesBeforeSubstringMatches() {
+        val candidates = listOf(
+            AppEntry("box", "Box", "box.Main"),
+            AppEntry("firefox", "Firefox", "firefox.Main"),
+            AppEntry("x", "X", "x.Main"),
+            AppEntry("xbox", "Xbox", "xbox.Main"),
+        )
+        listOf("X", "x", "  x  ").forEach { query ->
+            assertEquals(
+                listOf(candidates[2], candidates[0], candidates[1], candidates[3]),
+                searchNames(query, candidates, emptyList()).apps,
+            )
+        }
+    }
+
+    @Test
+    fun longerExactAppNamesKeepTheirOrderAheadOfPartialMatches() {
+        val candidates = listOf(
+            AppEntry("camera.plus", "Camera Plus", "camera.plus.Main"),
+            AppEntry("camera", "Camera", "camera.Main"),
+            AppEntry("my.camera", "My Camera", "my.camera.Main"),
+            AppEntry("other.camera", "cAMERA", "other.camera.Main"),
+        )
+        assertEquals(
+            listOf(candidates[1], candidates[3], candidates[0], candidates[2]),
+            searchNames("  CAMERA  ", candidates, emptyList()).apps,
+        )
+    }
+
+    @Test
+    fun partialOnlyMatchesKeepTheirIncomingOrder() {
+        val candidates = apps.reversed()
+        assertEquals(candidates, searchNames("ca", candidates, emptyList()).apps)
+    }
+
+    @Test
+    fun exactAppPriorityDoesNotReorderContacts() {
+        val candidates = listOf(
+            AppEntry("box", "Box", "box.Main"),
+            AppEntry("x", "X", "x.Main"),
+        )
+        val people = listOf(ContactEntry(1, "Max"), ContactEntry(2, "X"))
+        val result = searchNames("x", candidates, people)
+        assertEquals(candidates.reversed(), result.apps)
+        assertEquals(people, result.contacts)
+    }
+
+    @Test
     fun emptyOrWhitespaceQueriesHaveNoResults() {
         listOf("", "  ").forEach { query ->
             assertEquals(SearchMatches(emptyList(), emptyList()), searchNames(query, apps, contacts))
