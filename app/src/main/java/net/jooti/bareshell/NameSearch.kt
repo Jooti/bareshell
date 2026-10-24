@@ -13,7 +13,8 @@ internal fun searchNames(
     val term = query.trim()
     if (term.isEmpty()) return SearchMatches(emptyList(), emptyList())
     return SearchMatches(
-        apps.filter { it.label.contains(term, ignoreCase = true) },
+        apps.filter { it.label.contains(term, ignoreCase = true) }
+            .sortedBy { !it.label.equals(term, ignoreCase = true) },
         contacts.filter { it.label.contains(term, ignoreCase = true) },
     )
 }

@@ -115,7 +115,9 @@ not close the launcher. Ordinary returns from Settings or permission dialogs kee
 the relevant page instead of resetting it to Home.
 
 Search matches names using case-insensitive substring matching and ignores outer
-query whitespace. Empty queries show no results. Opening Search automatically
+query whitespace. Exact app-name matches appear before partial app-name matches,
+including single-character names such as X; order within each group is unchanged.
+Contact ordering is unchanged. Empty queries show no results. Opening Search automatically
 focuses its text box, selects the previous query for replacement, and opens the
 keyboard. The previous query and results remain until you type. With the keyboard
 open, a 24dp gap below the system top inset keeps the field away from the top edge.

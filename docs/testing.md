@@ -73,6 +73,15 @@ On an isolated target emulator/phone:
    (including Search as Home), Back hiding the keyboard without reopening it,
    keyboard dismissal when leaving Search, query preservation on recreation,
    and selection/replacement of the previous query on re-entry.
+   Search for X with substring matches such as Box and Firefox installed: X must
+   appear first, also for `x` and `  x  `. Check longer exact names and shared
+   exact names across packages; retain order within exact and partial groups,
+   leave contacts in their previous order, and keep blank queries empty.
+   With a test app whose application and launcher activity labels differ, verify
+   Top Apps (when included), All Apps, and Search use the launcher label, search
+   finds that name, and tapping still opens the correct activity. Check an
+   installed WebAPK separately from a website shortcut pinned in another
+   launcher: the latter is not imported. Recheck after returning Home.
 8. Check light/dark, large fonts, landscape, repeated Home, and restart/unlock.
 9. Verify recovery through system Home settings. After authorized testing on a
    borrowed device, restore its original launcher selection and permissions.

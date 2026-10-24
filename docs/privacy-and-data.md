@@ -92,6 +92,18 @@ Android user. It includes launchable system apps, excludes itself, and shows one
 entry per package even when an app has multiple launcher activities. Work profiles
 and other users are not included.
 
+App names use Android's resolved launcher activity label, falling back to the
+application label when no activity label is supplied. Top Apps, All Apps, and
+Search share these names and eligibility rules.
+
+Installed PWAs packaged as WebAPKs are eligible when they expose an enabled,
+exported MAIN/LAUNCHER activity for the current user. A website shortcut saved on
+another launcher's home screen is not necessarily an installed app. BareShell
+does not discover or import those launcher-only shortcuts. Likewise, additional
+named launcher activities in the same package do not get separate app rows.
+An item appearing in another launcher therefore does not guarantee it appears
+in BareShell's app lists or Search.
+
 Ordering gives **equal 50/50 weight** to foreground-entry frequency and total
 foreground time over seven days, including use outside BareShell. For each
 metric, a positive app's percentile is the fraction of positive eligible app
