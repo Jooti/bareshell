@@ -50,9 +50,6 @@ after setup. You can also set it later in BareShell Settings or Android's
 Keep your stock launcher installed. Android still controls system navigation,
 Recents, the notification shade, and the keyboard.
 
-**Coming from Mini Home?** BareShell uses `net.jooti.bareshell` and installs as a
-separate app. Mini Home's data, permissions, and default-Home setting are not
-transferred or changed automatically.
 
 ## Learn more or contribute
 
