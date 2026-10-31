@@ -2,10 +2,45 @@
 
 [Documentation index](README.md) | [BareShell introduction](../README.md)
 
-## First-run setup
+## First use
 
-Without a complete, supported saved configuration, the wizard starts with
-Home selection:
+New installations save a default layout and open **Top Apps** as Home without a
+configuration wizard:
+
+| From Home | Destination |
+| --- | --- |
+| Swipe left | Close Contacts |
+| Swipe right | Tasks |
+| Swipe down | Search |
+
+Only these one-finger gestures are assigned. Swipe up, shake, and two-finger
+gestures are unassigned; All Apps and All Contacts remain disabled until you
+configure them. Counts default to 10 with System colors and Monospace text.
+Existing completed layouts retain their Home and every shortcut.
+
+A one-time introduction shows sample apps in the same layout as Top Apps.
+The small top overlay asks you to **swipe left** for sample people, then
+**swipe right** back to apps. Tapping the instruction also advances the step.
+A four-box map shows Search above Apps, with Tasks on the left and Contacts
+on the right; short captions show the actual swipe directions.
+**Start** ends the introduction. Back revisits the previous step.
+Sample data is clearly labeled, never saved, and cannot launch apps, contact
+people, or create tasks.
+The tour requests no permissions; usage and contacts access can be enabled later.
+Tasks and app search work without either permission.
+
+Rotation preserves the current step. An unfinished tour resumes after a cold
+restart; a completed introduction never repeats, including after a wizard reset.
+Finishing saves completion before offering **Set as default Home** / **Not now**.
+Declining or canceling does not repeat the offer, and already-default launchers
+skip it. If initialization or completion cannot be saved, explicit feedback
+offers a retry rather than pretending setup succeeded.
+
+## Optional configuration wizard
+
+Long-press blank Home space for Settings, then select **Reset wizard** and confirm.
+The wizard also opens for invalid, incomplete, or unavailable saved layouts.
+It starts with Home selection:
 
 > Choose your Home screen
 
@@ -54,7 +89,9 @@ Home chooser unless BareShell is already the default. Declining or canceling
 does not repeat the offer on later launches. Settings always provides the action;
 completing a reset wizard may offer it again.
 Incomplete setup is not stored as a completed configuration and may restart after
-a fresh launch. Save failures offer a retry instead of reporting success.
+a fresh launch. An explicit reset is stored durably, so restarting still opens
+the wizard rather than replacing your choices with first-use defaults.
+Save failures offer a retry instead of reporting success.
 
 The completed Home and gesture settings are stored privately on this device.
 Cloud backup is disabled, and modern cloud/device-transfer rules exclude the
@@ -70,6 +107,9 @@ This wizard chooses **BareShell's Home page**, not Android's default launcher.
 Android's separate default Home app selection is described below.
 
 ## Pages and navigation
+
+When Close Contacts is empty, a short hint suggests starring people in Contacts
+and explains that BareShell gradually learns favorites.
 
 | Page | Contents |
 | --- | --- |
@@ -161,11 +201,11 @@ so slow swipes and pausing after moving still work.
 - **Monospace** is the default font; **System Sans** restores the previous
   proportional style. Font choices include samples. Theme and font changes
   apply immediately after a successful durable save and persist after restart.
-- **Theme · Colors** and **Font · Typography** have separate headings,
+- **Theme** and **Font** have separate headings,
   descriptions, and spacing. Choosing one never changes the other.
 - **Set as default Home** opens Android's Home chooser. Once selected, Settings
   shows **BareShell is your default Home** instead.
-- **Reset wizard** asks for confirmation and clears only Home, enabled-page,
+- **Reset wizard** asks for confirmation and resets only Home, enabled-page,
   and gesture choices. It keeps tasks, list counts, appearance, contact scores, permissions,
   and Android's default Home.
 - **Clear contact history** separately confirms removal of contact interaction

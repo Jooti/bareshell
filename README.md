@@ -8,7 +8,12 @@ Supports Android 8.0 (API 26) and newer.
 
 ## Make Home your own
 
-Choose a Home page, include the other pages you want, and give each a gesture:
+Start immediately with **Top Apps** as Home: swipe **left** for **Close Contacts**,
+**right** for **Tasks**, and **down** for **Search**. A one-time welcome overlay
+guides you left to sample contacts and right back to sample apps, then shows a
+compact shortcut map.
+Long-press blank Home space for Settings and use **Reset wizard** to choose a
+different Home, include other pages, and assign gestures.
 
 | Page | What it does |
 | --- | --- |
@@ -47,8 +52,10 @@ Settings.
 ## Get started
 
 Build and install the APK using the [development guide](docs/development.md),
-then complete the wizard. BareShell offers **Set as default Home** or **Not now**
-after setup. You can also set it later in BareShell Settings or Android's
+then explore the welcome overlay; no configuration wizard or permission grant
+is required. Tap **Start** after the shortcut map for **Set as default Home** or **Not now**.
+The sample data is never saved or used for real actions. You can also set the
+default launcher later in BareShell Settings or Android's
 **Apps → Default apps → Home app**.
 
 Keep your stock launcher installed. Android still controls system navigation,

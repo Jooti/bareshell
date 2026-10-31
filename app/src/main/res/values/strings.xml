@@ -1,5 +1,27 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="welcome_title">Your shortcuts</string>
+    <string name="welcome_sample_notice">Demo</string>
+    <string-array name="welcome_apps_sample">
+        <item>Phone</item>
+        <item>Messages</item>
+        <item>Camera</item>
+        <item>Calendar</item>
+    </string-array>
+    <string-array name="welcome_contacts_sample">
+        <item>Alex</item>
+        <item>Sam</item>
+        <item>Taylor</item>
+    </string-array>
+    <string name="welcome_swipe_action">%1$s, or tap to continue</string>
+    <string name="welcome_map_apps">Apps</string>
+    <string name="welcome_map_contacts">Contacts</string>
+    <string name="welcome_map_description">Home: Apps. Swipe left: Contacts. Swipe right: Tasks. Swipe down: Search.</string>
+    <string name="welcome_settings">Hold Home for Settings</string>
+    <string name="welcome_finish">Start</string>
+    <string name="welcome_save_failed">Could not save. Tap Start to retry.</string>
+    <string name="welcome_initializing">Preparing your default Home…</string>
+    <string name="welcome_initialization_failed">Could not save your default layout. Please try again.</string>
     <string name="included_pages">Included pages (%1$d)</string>
     <string name="excluded_pages">Not included (%1$d)</string>
     <string name="destination_groups_help">Included pages get a gesture shortcut. Remove any you do not need, or add them back below.</string>
@@ -13,15 +35,15 @@
     <string name="two_swipe_down">Two-finger down</string>
     <string name="wizard_two_fingers">Two-finger swipes work too: start both fingers in blank space and move them together. Use the opposite two-finger swipe to return Home. Accessibility services may reserve these gestures.</string>
     <string name="appearance_title">Appearance</string>
-    <string name="theme_title">Theme · Colors</string>
-    <string name="theme_explanation">Choose background and text colors. System follows your device’s light or dark appearance.</string>
-    <string name="font_title">Font · Typography</string>
-    <string name="font_explanation">Choose the letter style independently of colors. The samples below use each font.</string>
+    <string name="theme_title">Theme</string>
+    <string name="theme_explanation">System follows device colors.</string>
+    <string name="font_title">Font</string>
+    <string name="font_explanation">Text style.</string>
     <string name="default_home_set">Set as default Home</string>
-    <string name="default_home_current">BareShell is your default Home</string>
+    <string name="default_home_current">Default Home: BareShell</string>
     <string name="default_home_not_now">Not now</string>
     <string name="default_home_prompt_title">Make BareShell your Home?</string>
-    <string name="default_home_prompt_message">Choose BareShell in Android’s next screen to open it when you press Home. You can do this later in BareShell Settings.</string>
+    <string name="default_home_prompt_message">Choose BareShell on the next screen. Change it later in Settings.</string>
     <string name="default_home_unavailable">Could not open Android’s Home chooser. Open system Settings → Apps → Default apps → Home app to choose BareShell.</string>
     <string name="theme_system">System</string>
     <string name="theme_system_resolved">System (%1$s)</string>
@@ -32,9 +54,9 @@
     <string name="font_monospace">Monospace</string>
     <string name="font_system">System Sans</string>
     <string name="option_selected">Selected</string>
-    <string name="option_choose">Tap to choose</string>
-    <string name="theme_preview">%1$s · %2$s\nBareShell · Aa 0123</string>
-    <string name="font_preview">%1$s · %2$s\nAa Bb 0123 · BareShell</string>
+    <string name="option_choose">Choose</string>
+    <string name="theme_preview">%1$s · %2$s</string>
+    <string name="font_preview">%1$s · %2$s\nAa 0123</string>
     <string name="app_name">BareShell</string>
     <string name="loading_apps">Loading apps&#8230;</string>
     <string name="enable_usage_access">Enable usage access</string>
@@ -126,7 +148,7 @@
     <string name="saving_setup">Saving your home&#8230;</string>
     <string name="save_failed">Your setup could not be saved.</string>
     <string name="retry_save">Retry saving</string>
-    <string name="no_fav_contacts">No close contacts yet. Star people in your Contacts app, or open a contact in All Contacts or Search.</string>
+    <string name="no_fav_contacts">Star people in Contacts. We\u2019ll gradually learn your favorites.</string>
     <string name="view_contact">View contact</string>
     <string name="app_info">App Info</string>
     <string name="option_view">View</string>
@@ -144,16 +166,16 @@
     <string name="close_contacts_count">Close Contacts count</string>
     <string name="settings_top_count">Top Apps: %1$d</string>
     <string name="settings_close_count">Close Contacts: %1$d</string>
-    <string name="settings_invalid">Launcher settings are invalid. Using default counts and appearance until you save valid settings.</string>
+    <string name="settings_invalid">Invalid settings. Default counts and appearance are active.</string>
     <string name="settings_saving">Saving&#8230;</string>
     <string name="settings_saved">Saved.</string>
-    <string name="settings_save_failed">Could not save this change. Please try again.</string>
+    <string name="settings_save_failed">Could not save. Try again.</string>
     <string name="reset_wizard">Reset wizard</string>
-    <string name="reset_wizard_explanation">Choose Home, enabled pages, and gestures again? Tasks, list counts, contact history, permissions, and Android\u2019s default launcher will stay unchanged.</string>
+    <string name="reset_wizard_explanation">Change Home and swipes? Tasks, counts, history, permissions, and Android Home stay.</string>
     <string name="clear_contact_history">Clear contact history</string>
-    <string name="clear_history_explanation">Remove contact interaction points and Up/Down adjustments? System stars, app adjustments, and tasks will stay unchanged.</string>
+    <string name="clear_history_explanation">Clear contact scores? Stars, app scores, and tasks stay.</string>
     <string name="history_cleared">Contact history cleared. System stars are unchanged.</string>
-    <string name="contact_history_explanation">Close Contacts ranks positive totals: 50 points for a system star, plus interaction points and Up/Down adjustments. Opening contact details or successfully handing an action to another app earns one point. Hold a name for View, Edit, Up (+10), or Down (-10). Each local day removes one interaction point and moves the manual balance one point toward zero. Scores stay hidden and on this device; completed calls and messages are not counted.</string>
+    <string name="contact_history_explanation">Stars and activity rank contacts. Hold a name to adjust.</string>
     <string name="loading_contacts">Loading contacts&#8230;</string>
     <string name="contact_index_favorites">Fav</string>
     <string name="jump_to_contact_section">Jump to %1$s</string>

@@ -86,6 +86,8 @@ class MainActivity : Activity() {
     private lateinit var root: LinearLayout
     private lateinit var host: FrameLayout
     private var wizard: SetupWizard? = null
+    private var welcome: WelcomeOverlay? = null
+    private var initializing = false
     private var pages: LauncherPages? = null
     private var tasksPage: TasksPage? = null
     private var taskUiState: Bundle? = null
@@ -106,7 +108,7 @@ class MainActivity : Activity() {
         pageCache = PageCacheStore(applicationContext)
         loadListSettings()
         gestures = GestureInput(this, ::handleGesture, ::shakeEnabled, ::sensorUnavailable,
-            { configuration != null && currentPage == configuration?.home }, ::openLauncherSettings)
+            { welcome == null && configuration != null && currentPage == configuration?.home }, ::openLauncherSettings)
         root = object : LinearLayout(this) {
             override fun onInterceptTouchEvent(event: MotionEvent): Boolean =
                 if (event.actionMasked == MotionEvent.ACTION_DOWN) {
@@ -163,6 +165,7 @@ class MainActivity : Activity() {
         when (val saved = store.load(gestures.available)) {
             is ConfigurationRead.Ready -> {
                 configuration = saved.configuration
+                homePromptPending = homePromptPending || saved.defaultHomePending
                 val restored = Page.entries.firstOrNull {
                     it.name == savedInstanceState?.getString("page") && saved.configuration.enables(it)
                 }
@@ -179,8 +182,13 @@ class MainActivity : Activity() {
                 pages?.setMenu(menu)
                 restoreHeldContacts(savedInstanceState?.getBundle("held_contacts"))
                 pages?.restoreState(savedInstanceState)
+                if (saved.introductionPending) {
+                    val step = WelcomeStep.entries.firstOrNull { it.name == savedInstanceState?.getString("welcome_step") }
+                    showWelcome(step ?: WelcomeStep.APPS)
+                }
             }
-            ConfigurationRead.Missing, ConfigurationRead.Invalid -> {
+            ConfigurationRead.Missing -> initializeDefaults()
+            ConfigurationRead.SetupRequested, ConfigurationRead.Invalid -> {
                 invalidSettings = saved == ConfigurationRead.Invalid
                 if (invalidSettings) Log.w(TAG, "Stored launcher configuration is invalid or unsupported")
                 restoreWizard(savedInstanceState)
@@ -217,7 +225,7 @@ class MainActivity : Activity() {
         }
         scheduleMidnight()
         wizard?.setForeground(true)
-        if (configuration == null || configuration?.bindings?.containsValue(Gesture.SHAKE) == true) {
+        if ((configuration == null && wizard != null) || configuration?.bindings?.containsValue(Gesture.SHAKE) == true) {
             gestures.resume()
         }
         if (configuration != null) refreshPage()
@@ -239,6 +247,7 @@ class MainActivity : Activity() {
         if (intent.action == Intent.ACTION_MAIN &&
             (intent.hasCategory(Intent.CATEGORY_HOME) || intent.hasCategory(Intent.CATEGORY_LAUNCHER))
         ) {
+            if (welcome != null) { welcome?.back(); return }
             configuration?.let {
                 hideKeyboard()
                 showPage(it.home)
@@ -267,6 +276,7 @@ class MainActivity : Activity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("home_prompt_pending", homePromptPending)
+        welcome?.let { outState.putString("welcome_step", it.step.name) }
         outState.putString("page", currentPage.name)
         outState.putString("query", searchQuery)
         outState.putLong("expanded_contact", menu.expansion.contactId ?: -1)
@@ -337,6 +347,7 @@ class MainActivity : Activity() {
         }
 
         private fun beginWizard() {
+            welcome = null
             cancelLoads()
             pages?.dispose()
             pages = null
@@ -358,7 +369,7 @@ class MainActivity : Activity() {
 
         @Suppress("DEPRECATION")
         private fun openLauncherSettings() {
-            if (configuration == null || currentPage != configuration?.home) return
+            if (welcome != null || configuration == null || currentPage != configuration?.home) return
             val page = tasksPage
             if (page != null) page.requestLeave { openLauncherSettingsNow() } else openLauncherSettingsNow()
         }
@@ -430,6 +441,84 @@ class MainActivity : Activity() {
         wizard?.setForeground(resumed)
     }
 
+    private fun initializeDefaults() {
+        if (initializing) return
+        initializing = true
+        root.isLongClickable = false
+        root.findViewById<View>(R.id.gesture_strip).visibility = View.GONE
+        host.removeAllViews()
+        host.addView(textLabel(getString(R.string.welcome_initializing), R.id.status_message))
+        executor.submit {
+            val saved = store.initialize()
+            val result = if (saved) store.load(gestures.available) else null
+            runOnUiThread {
+                if (!isDestroyed) {
+                    initializing = false
+                    if (result is ConfigurationRead.Ready) {
+                        configuration = result.configuration
+                        homePromptPending = homePromptPending || result.defaultHomePending
+                        gestures.pause()
+                        showPage(result.configuration.home)
+                        if (result.introductionPending) showWelcome(WelcomeStep.APPS)
+                        offerDefaultHome()
+                    } else {
+                        Log.e(TAG, "Default launcher configuration could not be initialized")
+                        host.removeAllViews()
+                        host.addView(LinearLayout(this).apply {
+                            orientation = LinearLayout.VERTICAL
+                            addView(textLabel(getString(R.string.welcome_initialization_failed), R.id.status_message))
+                            addView(textLabel(getString(R.string.retry_save), R.id.retry_save).apply {
+                                onTextClick { initializeDefaults() }
+                            })
+                        })
+                    }
+                }
+            }
+        }
+    }
+
+    private fun showWelcome(step: WelcomeStep) {
+        hideKeyboard()
+        root.isLongClickable = false
+        root.findViewById<View>(R.id.gesture_strip).visibility = View.GONE
+        for (index in 0 until host.childCount) {
+            host.getChildAt(index).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+            host.getChildAt(index).visibility = View.INVISIBLE
+        }
+        welcome = WelcomeOverlay(this, step, ::finishWelcome).also {
+            host.addView(it.view, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+            ))
+        }
+    }
+
+    private fun finishWelcome() {
+        val overlay = welcome ?: return
+        if (saving) return
+        saving = true
+        overlay.saving(true)
+        executor.submit {
+            val saved = store.finishIntroduction()
+            runOnUiThread {
+                if (!isDestroyed) {
+                    saving = false
+                    if (saved) {
+                        host.removeView(overlay.view)
+                        welcome = null
+                        for (index in 0 until host.childCount) {
+                            host.getChildAt(index).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                            host.getChildAt(index).visibility = View.VISIBLE
+                        }
+                        homePromptPending = true
+                        root.isLongClickable = currentPage == configuration?.home
+                        root.findViewById<View>(R.id.gesture_strip).visibility = View.VISIBLE
+                        offerDefaultHome()
+                    } else overlay.saving(false, failed = true)
+                }
+            }
+        }
+    }
+
     private fun saveConfiguration() {
         if (saving || !progress.complete) return
         saving = true
@@ -460,21 +549,20 @@ class MainActivity : Activity() {
     }
 
     private fun offerDefaultHome() {
-        if (!homePromptPending || !resumed || !hasWindowFocus() || configuration == null ||
+        if (!homePromptPending || welcome != null || !resumed || !hasWindowFocus() || configuration == null ||
             isFinishing || isDestroyed || homePrompt != null) return
         if (isDefaultHome()) {
-            homePromptPending = false
+            dismissHomeOffer(false)
             return
         }
         homePrompt = AlertDialog.Builder(this)
             .setTitle(R.string.default_home_prompt_title)
             .setMessage(R.string.default_home_prompt_message)
             .setPositiveButton(R.string.default_home_set) { _, _ ->
-                homePromptPending = false
-                requestDefaultHome(DEFAULT_HOME_REQUEST)
+                dismissHomeOffer(true)
             }
-            .setNegativeButton(R.string.default_home_not_now) { _, _ -> homePromptPending = false }
-            .setOnCancelListener { homePromptPending = false }
+            .setNegativeButton(R.string.default_home_not_now) { _, _ -> dismissHomeOffer(false) }
+            .setOnCancelListener { dismissHomeOffer(false) }
             .show().apply {
                 setOnDismissListener {
                     homePrompt = null
@@ -483,7 +571,24 @@ class MainActivity : Activity() {
             }
     }
 
+    private fun dismissHomeOffer(setDefault: Boolean) {
+        homePromptPending = false
+        executor.submit {
+            val saved = store.dismissDefaultHomeOffer()
+            runOnUiThread {
+                if (!isDestroyed) {
+                    if (!saved) {
+                        homePromptPending = true
+                        Toast.makeText(this, R.string.settings_save_failed, Toast.LENGTH_LONG).show()
+                        if (!isDefaultHome()) offerDefaultHome()
+                    } else if (setDefault) requestDefaultHome(DEFAULT_HOME_REQUEST)
+                }
+            }
+        }
+    }
+
     private fun showPage(page: Page) {
+        if (welcome != null) return
         val settings = configuration ?: return
         if (!settings.enables(page)) {
             Log.w(TAG, "Attempt to open disabled page: $page")
@@ -705,6 +810,8 @@ class MainActivity : Activity() {
     }
 
     private fun handleGesture(gesture: Gesture) {
+        welcome?.let { it.navigate(gesture); return }
+        if (initializing) return
         val settings = configuration
         if (settings == null) {
             if (saving || wizard?.inputReady != true || !progress.assigning || progress.complete) return
@@ -728,6 +835,7 @@ class MainActivity : Activity() {
     }
 
     private fun sensorUnavailable() {
+        if (initializing) return
         if (configuration?.bindings?.containsValue(Gesture.SHAKE) == true) {
             Log.w(TAG, "Saved shake binding is unavailable; setup is required")
             configuration = null
@@ -748,6 +856,7 @@ class MainActivity : Activity() {
 
     private fun handleBack() {
         if (saving) return
+        welcome?.let { it.back(); return }
         if (configuration == null) {
             if (wizard?.inputReady == true) {
                 progress = progress.back()
@@ -1082,7 +1191,7 @@ class MainActivity : Activity() {
     }
 
     private fun showSearchKeyboard() {
-        if (!searchKeyboardPending || !resumed || !hasWindowFocus() || homePromptPending || homePrompt != null) return
+        if (!searchKeyboardPending || welcome != null || !resumed || !hasWindowFocus() || homePromptPending || homePrompt != null) return
         val input = host.findViewById<EditText>(R.id.search_input) ?: return
         input.requestFocus()
         input.post {

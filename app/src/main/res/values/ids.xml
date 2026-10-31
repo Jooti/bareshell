@@ -1,5 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="welcome_title" type="id" />
+    <item name="welcome_text" type="id" />
+    <item name="welcome_preview" type="id" />
+    <item name="welcome_row" type="id" />
+    <item name="welcome_map" type="id" />
+    <item name="welcome_map_box" type="id" />
+    <item name="welcome_map_arrow" type="id" />
+    <item name="welcome_map_gesture" type="id" />
+    <item name="welcome_swipe_area" type="id" />
+    <item name="welcome_navigation" type="id" />
+    <item name="welcome_finish" type="id" />
+    <item name="welcome_status" type="id" />
+    <item name="welcome_sample_notice" type="id" />
     <item name="appearance_heading" type="id" />
     <item name="theme_heading" type="id" />
     <item name="theme_explanation" type="id" />

@@ -16,6 +16,8 @@ JVM tests mirror that package in
 | Component | Responsibility |
 | --- | --- |
 | `MainActivity` | Wizard/page lifecycle, navigation, async catalogs, Search focus, permission return, and default-Home offer. |
+| `WelcomeOverlay` | Isolated, presentation-only sample pages and first-use swipe practice with accessible controls. |
+| `WelcomeStep` | Guided Apps → Contacts → shortcut-map progression, expected gestures, and Back behavior. |
 | `DefaultHome` | Actual Home role/default detection and Android chooser/settings handoff. |
 | `LauncherConfiguration`, `ConfigurationStore` | Typed pages/gestures, wizard progression, validated private configuration. |
 | `GestureInput`, `GestureRecognition` | Blank-space hit testing, pointer tracking, swipes, and optional foreground shake. |
@@ -58,6 +60,19 @@ edits require Save or Discard and retain navigation protection.
 Settings retains application-context work across recreation. A successful
 durable save updates the UI and broadcasts personalization changes within the
 package. Failed writes keep the previous appearance and report failure.
+
+Fresh installations atomically store the canonical default configuration and a
+pending-introduction flag on the catalog worker. Completed existing layouts
+without this flag never receive the tour. The welcome overlay navigates with the
+real contact shortcut for its two practice steps, retains its own step, and never writes
+sample data or invokes live page actions. Completion replaces the introduction
+flag with a pending default-Home offer; dismissing the offer clears that flag
+durably. This survives process death without repeating a completed introduction.
+
+Configuration parsing strictly validates these optional Boolean metadata keys.
+An exact, durable `setup_requested` marker distinguishes deliberate wizard reset
+from an empty first-use store. Configuration writes serialize across Activity
+instances and restore the previous SharedPreferences memory state on failure.
 
 ## Cached-first rendering
 

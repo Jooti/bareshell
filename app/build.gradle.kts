@@ -48,6 +48,7 @@ android {
         targetSdk = 36
         versionCode = releaseVersionCode ?: 1
         versionName = ciVersionName ?: "0.1"
+        testInstrumentationRunner = "net.jooti.bareshell.FirstUseInstrumentation"
     }
 
     if (signingRequested) {
