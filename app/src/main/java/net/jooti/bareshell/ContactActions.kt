@@ -46,6 +46,7 @@ internal sealed interface ContactDetailsResult {
 
 internal sealed interface ContactAction {
     data class View(val contact: ContactEntry) : ContactAction
+    data class Edit(val contact: ContactEntry) : ContactAction
     data class Dial(val phone: ContactPhone) : ContactAction
     data class Sms(val phone: ContactPhone) : ContactAction
     data class Messenger(val target: VerifiedContactAction) : ContactAction
@@ -65,10 +66,35 @@ internal data class ContactMenu(
     val expansion: ContactExpansion = ContactExpansion(),
     val result: ContactDetailsResult = ContactDetailsResult.Loading,
     val refreshing: Boolean = false,
-)
+    val options: ItemTarget? = null,
+    val saving: Boolean = false,
+) {
+    val selectedKey: String? get() = options?.key ?: expansion.contactId?.let { "contact:$it" }
+    val expanded: Boolean get() = selectedKey != null
+
+    init {
+        require(options == null || when (options) {
+            is ItemTarget.App -> expansion.contactId == null
+            is ItemTarget.Contact -> expansion.contactId == options.id
+        })
+    }
+}
+
+internal sealed interface ItemTarget {
+    val key: String
+    data class App(val packageName: String) : ItemTarget {
+        override val key: String get() = "app:$packageName"
+    }
+    data class Contact(val id: Long) : ItemTarget {
+        override val key: String get() = "contact:$id"
+    }
+}
+
+internal enum class ItemOption { APP_INFO, VIEW, EDIT, UP, DOWN }
 
 internal fun ContactDetails.contains(action: ContactAction): Boolean = when (action) {
     is ContactAction.View -> action.contact == contact
+    is ContactAction.Edit -> action.contact == contact
     is ContactAction.Dial -> action.phone in phones
     is ContactAction.Sms -> action.phone in phones
     is ContactAction.Messenger -> action.target in messaging

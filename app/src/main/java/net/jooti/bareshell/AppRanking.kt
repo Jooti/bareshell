@@ -35,23 +35,18 @@ internal fun rankApps(
     locale: Locale = Locale.getDefault(),
     limit: Int = 10,
     opens: Map<String, Long> = emptyMap(),
+    adjustments: Map<String, RankingAdjustment> = emptyMap(),
 ): List<AppEntry> {
     require(limit in listCountOptions)
     val totals = usage.groupingBy { it.packageName }
-        .fold(0L) { total, record -> total + record.milliseconds }
+        .fold(0L) { total, record -> addUsage(total, record.milliseconds) }
     val eligible = allApps(apps, ownPackageName, locale)
-    fun percentiles(values: Map<String, Long>): Map<String, Double> {
-        val positive = eligible.mapNotNull { values[it.packageName]?.takeIf { value -> value > 0 } }.sorted()
-        return eligible.associate { app ->
-            val value = values[app.packageName] ?: 0
-            app.packageName to if (value <= 0 || positive.isEmpty()) 0.0 else {
-                positive.count { it <= value }.toDouble() / positive.size
-            }
-        }
+    val scores = eligible.associate { app ->
+        val automatic = addUsage(opens[app.packageName]?.coerceAtLeast(0) ?: 0,
+            (totals[app.packageName] ?: 0) / 600_000)
+        val manual = adjustments[app.packageName]?.points?.toLong() ?: 0
+        app.packageName to if (manual >= 0) addUsage(automatic, manual) else automatic + manual
     }
-    val frequency = percentiles(opens)
-    val time = percentiles(totals)
-    val scores = eligible.associate { it.packageName to (frequency.getValue(it.packageName) + time.getValue(it.packageName)) / 2 }
     val collator = Collator.getInstance(locale)
     val order = Comparator<AppEntry> { first, second ->
         compareValues(scores.getValue(second.packageName), scores.getValue(first.packageName))

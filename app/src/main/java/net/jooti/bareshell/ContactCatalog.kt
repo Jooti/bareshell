@@ -15,11 +15,15 @@ internal fun favoriteContacts(
 ): List<ContactEntry> {
     require(limit in listCountOptions)
     val ordered = orderContacts(contacts, locale = locale)
-    val stars = ordered.filter { it.starred }
-    val recent = ordered.filter { !it.starred && (scores[it.lookupKey]?.points ?: 0) > 0 }
-        .sortedWith(compareByDescending<ContactEntry> { scores.getValue(it.lookupKey).points }
-            .thenByDescending { scores.getValue(it.lookupKey).lastInteraction })
-    return (stars + recent).take(limit)
+    fun total(contact: ContactEntry): Long {
+        val score = scores[contact.lookupKey]
+        return (if (contact.starred) 50L else 0L) + (score?.points ?: 0) +
+            (score?.adjustment?.points ?: 0)
+    }
+    return ordered.filter { total(it) > 0 }
+        .sortedWith(compareByDescending<ContactEntry> { total(it) }
+            .thenByDescending { scores[it.lookupKey]?.lastInteraction ?: 0L })
+        .take(limit)
 }
 
 internal fun alphabetSections(labels: List<String>, bucketLabel: (String) -> String): List<ContactSection> {

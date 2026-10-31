@@ -52,8 +52,63 @@ class LauncherConfigurationTest {
         assertEquals(ConfigurationRead.Invalid, readConfiguration(legacy(Page.FAV_APPS) + ("gesture.TASKS" to "SHAKE")))
     }
 
-    @Test fun missingSettingsStartTheWizard() {
+    @Test fun missingSettingsAreDistinctFromAnExplicitWizardReset() {
         assertEquals(ConfigurationRead.Missing, readConfiguration(emptyMap<String, Any>()))
+        assertEquals(ConfigurationRead.SetupRequested, readConfiguration(mapOf("setup_requested" to true)))
+        listOf(
+            mapOf("setup_requested" to false), mapOf("setup_requested" to "true"),
+            mapOf("setup_requested" to true, "introduction_pending" to true),
+            defaultConfiguration.storedValues() + ("setup_requested" to true),
+        ).forEach { assertEquals(ConfigurationRead.Invalid, readConfiguration(it)) }
+    }
+
+    @Test fun freshInstallDefaultsHaveExactlyTheRequestedHomeAndShortcuts() {
+        assertEquals(Page.FAV_APPS, defaultConfiguration.home)
+        assertEquals(mapOf(
+            Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN,
+        ), defaultConfiguration.bindings)
+        assertFalse(defaultConfiguration.enables(Page.ALL_APPS))
+        assertFalse(defaultConfiguration.enables(Page.ALL_CONTACTS))
+        assertEquals(ConfigurationRead.Ready(defaultConfiguration),
+            readConfiguration(defaultConfiguration.storedValues(), swipes))
+        assertEquals(ConfigurationRead.Ready(defaultConfiguration), readConfiguration(
+            defaultConfiguration.storedValues(), setOf(Gesture.LEFT, Gesture.RIGHT, Gesture.UP, Gesture.DOWN),
+        ))
+    }
+
+    @Test fun defaultNavigationUsesTheConfiguredForwardAndReversePairs() {
+        defaultConfiguration.bindings.forEach { (page, gesture) ->
+            assertEquals(page, defaultConfiguration.navigate(Page.FAV_APPS, gesture))
+            assertEquals(Page.FAV_APPS, defaultConfiguration.navigate(page, gesture.reverse()))
+            (Gesture.entries - gesture.reverse()).forEach {
+                assertEquals(page, defaultConfiguration.navigate(page, it))
+            }
+        }
+        (Gesture.entries - defaultConfiguration.bindings.values.toSet()).forEach {
+            assertEquals(Page.FAV_APPS, defaultConfiguration.navigate(Page.FAV_APPS, it))
+        }
+    }
+
+    @Test fun introductionAndHomeOfferStateRoundTripWithoutChangingLayout() {
+        val values = defaultConfiguration.storedValues()
+        assertEquals(ConfigurationRead.Ready(defaultConfiguration, introductionPending = true),
+            readConfiguration(values + ("introduction_pending" to true)))
+        assertEquals(ConfigurationRead.Ready(defaultConfiguration, defaultHomePending = true),
+            readConfiguration(values + ("default_home_pending" to true)))
+        assertEquals(ConfigurationRead.Ready(defaultConfiguration),
+            readConfiguration(values + ("introduction_pending" to false) + ("default_home_pending" to false)))
+        listOf(
+            values + ("introduction_pending" to "true"), values + ("default_home_pending" to 1),
+            values + ("introduction_pending" to true) + ("default_home_pending" to true),
+        ).forEach { assertEquals(ConfigurationRead.Invalid, readConfiguration(it)) }
+        Page.entries.forEach { home ->
+            assertEquals(ConfigurationRead.Ready(configuration(home)), readConfiguration(configuration(home).storedValues()))
+        }
+        (Page.entries - Page.TASKS).forEach { home ->
+            val existing = readConfiguration(legacy(home)) as ConfigurationRead.Ready
+            assertFalse(existing.introductionPending)
+            assertFalse(existing.defaultHomePending)
+        }
     }
 
     @Test fun malformedSettingsNeverSilentlyDefault() {

@@ -64,11 +64,11 @@ class ContactCatalogTest {
         val stars = (1..12).map { ContactEntry(it.toLong(), "Star ${it.toString().padStart(2, '0')}", true, "s$it") }
         val people = (1..60).map { ContactEntry((it + 12).toLong(), "Person $it", false, "p$it") }
         val scores = people.associate { it.lookupKey to ContactScore(it.id.toInt(), 100, it.id) }
+        val expected = people.filter { it.id >= 50 }.reversed() + stars + people.filter { it.id < 50 }.reversed()
         listCountOptions.forEach { count ->
             val result = favoriteContacts((stars + people).reversed(), Locale.US, count, scores)
             assertEquals(count, result.size)
-            assertEquals(stars.take(count), result.takeWhile { it.starred })
-            assertEquals(people.reversed().take(maxOf(0, count - stars.size)), result.drop(stars.size))
+            assertEquals(expected.take(count), result)
         }
         assertEquals(72, orderContacts(stars + people, true, Locale.US).size)
     }

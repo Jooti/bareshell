@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.res.Resources
 import android.os.Process
 import android.util.Log
+import android.database.sqlite.SQLiteException
 import java.util.concurrent.TimeUnit
 
 internal enum class UsageAccess {
@@ -22,7 +23,7 @@ internal sealed interface AppListResult {
     data object Unavailable : AppListResult
 }
 
-internal class AppRepository(private val context: Context) {
+internal class AppRepository(private val context: Context, private val ranking: AppRankingStore) {
     fun load(favorites: Boolean = true, limit: Int = 10): AppListResult {
         val apps = try {
             discoverApps()
@@ -38,10 +39,19 @@ internal class AppRepository(private val context: Context) {
             return AppListResult.Loaded(allApps(apps, context.packageName))
         }
 
+        val adjustments = try {
+            ranking.reconcile(apps)
+        } catch (error: SQLiteException) {
+            Log.e(TAG, "App ranking adjustments could not be read", error)
+            return AppListResult.Unavailable
+        } catch (error: SecurityException) {
+            Log.e(TAG, "App ranking storage access was denied", error)
+            return AppListResult.Unavailable
+        }
         try {
             if (!hasUsageAccess()) {
                 return AppListResult.Loaded(
-                    rankApps(apps, emptyList(), context.packageName, limit = limit),
+                    rankApps(apps, emptyList(), context.packageName, limit = limit, adjustments = adjustments),
                     UsageAccess.REQUIRED,
                 )
             }
@@ -54,7 +64,7 @@ internal class AppRepository(private val context: Context) {
             val usage = records.map { ForegroundUsage(it.packageName, it.totalTimeInForeground) }
             val opens = readOpens(manager, start, end)
             return AppListResult.Loaded(
-                rankApps(apps, usage, context.packageName, limit = limit, opens = opens),
+                rankApps(apps, usage, context.packageName, limit = limit, opens = opens, adjustments = adjustments),
                 UsageAccess.GRANTED,
             )
         } catch (error: SecurityException) {
@@ -64,7 +74,7 @@ internal class AppRepository(private val context: Context) {
         }
 
         return AppListResult.Loaded(
-            rankApps(apps, emptyList(), context.packageName, limit = limit),
+            rankApps(apps, emptyList(), context.packageName, limit = limit, adjustments = adjustments),
             UsageAccess.UNAVAILABLE,
         )
     }

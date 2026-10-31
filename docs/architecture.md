@@ -16,11 +16,13 @@ JVM tests mirror that package in
 | Component | Responsibility |
 | --- | --- |
 | `MainActivity` | Wizard/page lifecycle, navigation, async catalogs, Search focus, permission return, and default-Home offer. |
+| `WelcomeOverlay` | Isolated, presentation-only sample pages and first-use swipe practice with accessible controls. |
+| `WelcomeStep` | Guided Apps → Contacts → shortcut-map progression, expected gestures, and Back behavior. |
 | `DefaultHome` | Actual Home role/default detection and Android chooser/settings handoff. |
 | `LauncherConfiguration`, `ConfigurationStore` | Typed pages/gestures, wizard progression, validated private configuration. |
 | `GestureInput`, `GestureRecognition` | Blank-space hit testing, pointer tracking, swipes, and optional foreground shake. |
-| `LauncherPages`, `AlphabetIndex` | Cached text lists, Search input/results, contact expansion, and alphabet rails. |
-| `AppRepository`, ranking/frequency models | Eligible apps and public usage-based ranking. |
+| `LauncherPages`, `AlphabetIndex` | Cached text lists, Search input/results, mutually exclusive details/hold options, and alphabet rails. |
+| `AppRepository`, `AppRankingStore`, ranking/frequency models | Eligible apps, additive public usage points, and private package adjustments. |
 | `ContactRepository`, catalog/actions/history models | Permission-aware contacts, validated handoffs, local interaction scoring. |
 | `TasksPage`, `LauncherTask`, `TaskStore` | Compact task details/actions, separate drafts, pure transition rules, revision-checked SQLite. |
 | `PageCache`, `PageCacheStore` | Cache keys, invalidation, and private app/contact snapshots. |
@@ -33,6 +35,21 @@ Catalog/filter work is off the UI thread. Activity-owned generation checks
 prevent obsolete results from updating the current page. Contact details are
 loaded lazily and revalidated after external returns.
 
+App/contact catalog work and ranking writes share a serial worker across
+Activity recreation. Accepted adjustments are not replayed, and pending writes
+disable ranking options until persistence completes. Signed `RankingAdjustment`
+balances decay toward zero by local calendar day, independently of contact tap
+points. Contact-history schema version 2 adds manual fields without replacing
+old interaction data. Lookup reconciliation merges both balances and preserves
+negative adjustments until exhausted.
+
+Close Contacts defers ranked-page refreshes while any expansion is open, while
+still saving tap points and revalidating the selected contact. The held list
+survives recreation as transient Activity state and is never restored without
+contacts permission. Closing the expansion or leaving the page applies the
+latest ranking. Hold actions dismiss options before writes or external handoffs;
+View/Edit revalidation remains generation-checked after dismissal.
+
 Tasks use a shared serial worker so reads after recreation follow pending
 writes. New tasks carry a stable UUID, and updates check the previous revision
 inside a transaction. Pending task/action state survives recreation; a read
@@ -43,6 +60,19 @@ edits require Save or Discard and retain navigation protection.
 Settings retains application-context work across recreation. A successful
 durable save updates the UI and broadcasts personalization changes within the
 package. Failed writes keep the previous appearance and report failure.
+
+Fresh installations atomically store the canonical default configuration and a
+pending-introduction flag on the catalog worker. Completed existing layouts
+without this flag never receive the tour. The welcome overlay navigates with the
+real contact shortcut for its two practice steps, retains its own step, and never writes
+sample data or invokes live page actions. Completion replaces the introduction
+flag with a pending default-Home offer; dismissing the offer clears that flag
+durably. This survives process death without repeating a completed introduction.
+
+Configuration parsing strictly validates these optional Boolean metadata keys.
+An exact, durable `setup_requested` marker distinguishes deliberate wizard reset
+from an empty first-use store. Configuration writes serialize across Activity
+instances and restore the previous SharedPreferences memory state on failure.
 
 ## Cached-first rendering
 
@@ -55,6 +85,12 @@ query results; tasks reuse an in-memory snapshot and refresh from SQLite.
 First use without a snapshot still loads normally. Refresh failures remain
 visible rather than masquerading as a successful empty list. Snapshots are
 excluded from backup.
+
+Numeric ranking uses a new cache-key version. Ranked keys include the local day;
+successful score writes advance the affected ranked page epoch. Cache writes
+check the captured epoch under the same lock as invalidation so obsolete work
+cannot repopulate cleared snapshots. Refreshes preserve visible rows and active
+options/details where possible, but never preserve contacts after revocation.
 
 ## Compatibility boundaries
 

@@ -57,8 +57,9 @@ internal class PageCacheStore(context: Context) {
         return null
     }
 
-    fun put(page: Page, key: String, content: PageContent) {
+    fun put(page: Page, key: String, content: PageContent, expectedEpoch: Long = version(page)) = synchronized(memory) {
         if (!content.cacheable(page)) return
+        if (version(page) != expectedEpoch) return
         synchronized(memory) { memory[page] = key to content }
         val json = JSONObject().put("key", key)
         (content.apps as? AppListResult.Loaded)?.let { apps ->

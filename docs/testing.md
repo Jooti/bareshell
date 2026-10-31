@@ -17,6 +17,29 @@ For a focused task-model iteration:
 .\gradlew.bat :app:testDebugUnitTest --tests net.jooti.bareshell.LauncherTaskTest
 ```
 
+First-use configuration checks:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests net.jooti.bareshell.LauncherConfigurationTest --tests net.jooti.bareshell.WelcomeStepTest
+```
+
+The dependency-free native instrumentation runner tests real preferences,
+first-use eligibility, durable completion/default-Home handoff, explicit reset,
+existing configuration preservation, invalid layouts, and failed-commit memory
+rollback. It also checks that the welcome overlay hides live content and restores
+it after Start, checks the guided swipes, four-box map geometry, and short Settings
+copy. It deliberately changes launcher preferences: run only against a
+disposable installation on an isolated emulator, never a personal/shared device.
+
+```powershell
+.\gradlew.bat :app:assembleDebug :app:assembleDebugAndroidTest
+& $adb -s <isolated-device> install -r app\build\outputs\apk\debug\app-debug.apk
+& $adb -s <isolated-device> install -r app\build\outputs\apk\androidTest\debug\app-debug-androidTest.apk
+& $adb -s <isolated-device> shell am instrument -w net.jooti.bareshell.test/net.jooti.bareshell.FirstUseInstrumentation
+```
+
+Expect `First-use persistence and overlay checks passed` and instrumentation result code -1.
+
 ### Release automation
 
 Run publication/versioning tests without credentials or GitHub writes:
@@ -53,9 +76,19 @@ and leaves an already-published release unchanged on rerun.
 On an isolated target emulator/phone:
 
 1. Confirm BareShell appears in default Home app settings.
-2. Complete setup using real swipes/shake. Check prompt order, refusal to reuse
-   gestures, Back, and setup progress through a theme change or rotation.
-3. Relaunch and confirm setup persists. Test each forward/reverse pair, ignored
+2. On a fresh install without grants, verify Top Apps defaults and the welcome
+   overlay, not the wizard. Verify mock app rows match Top Apps, swipe left to
+   people, swipe right back to apps and the four-box map, and ignored gestures.
+   Verify accessible instruction taps and Start, Back, rotation/background/restart, large fonts,
+   landscape, and no real app/contact/task actions or sample-data writes.
+   Start must save completion before the default-Home offer, with failure/retry.
+   From Settings, reset and complete the optional wizard using real swipes/shake.
+   Check prompt order, refusal to reuse gestures, Back, and setup progress through
+   a theme change or rotation; confirmed reset survives process death without
+   initializing defaults or repeating the tour.
+3. Relaunch and confirm layout and completed introduction persist. Existing
+   configured/legacy installations must not receive new defaults or the tour.
+   Test each forward/reverse pair, ignored
    destination-to-destination gestures, normal list scrolling, and Android Home.
 4. Check Top Apps usage access/fallback, frequent short visits versus screen time,
    all six independent list-count options, and uncapped All Apps/Search.
@@ -122,13 +155,38 @@ On an isolated target emulator/phone:
     The first item should remain near the one-third boundary, with the top
     area fixed during scrolling and contact expansion. Check reduced spacing
     and a usable lower viewport in landscape with large text.
-18. Verify Set as default/Not now only after a successful wizard save, no repeat
+18. Verify Set as default/Not now only after successful introduction completion
+    or a successful optional wizard save, no repeat
     after declining or chooser cancellation, already-default suppression, Home
     launch behavior, Settings status/retry, and recreation without duplicate
     prompts. Keep the original launcher installed and untouched on shared devices.
-19. Confirm separate Theme/Font headings, explanations, and independent selection.
+19. Confirm short, separate Theme/Font headings, explanations, and independent selection.
     Inspect the logo in launcher masks and themed-icon light/dark modes; verify
     packaged identity `net.jooti.bareshell`, label BareShell, and private Settings.
+20. Hold names on Top Apps, All Apps, Close Contacts, All Contacts, and both Search
+    result types. Verify inline App Info/Up/Down and View/Edit/Up/Down order,
+    ordinary tap behavior, one active expansion, consumed holds with no tap
+    point, Back/query/page dismissal, restored selection, dimming/anchor behavior,
+    hidden alphabet rails, and blank-space Settings holds.
+21. Check app numeric points at 599,999/600,000/1,200,000 accumulated milliseconds,
+    foreground-entry deduplication, manual ranking without usage access, and
+    unchanged alphabetical/Search order. Check +50 stars, non-stars outranking
+    stars, and zero/negative starred exclusion. Successful View/Edit earns one
+    tap point; Up/Down applies only +/-10 and leaves interaction recency alone.
+22. Verify repeated adjustments, cancellation, positive/negative daily decay,
+    missed days, backward clocks, restart, rotation during a pending write,
+    explicit save failure, and no stale cached ranking after a successful write.
+    Upgrade a version-1 contact database without losing tap points, reconcile
+    changed/deleted identities and negative-only rows, and confirm contact-history
+    clearing removes both contact balances but preserves app adjustments/stars/tasks.
+    Exercise queued writes racing a clear, permission revocation, removed apps,
+    and unavailable App Info/View/Edit handlers on an isolated device.
+23. Verify every hold-menu action closes options, including failed handoffs and
+    Up/Down writes. Tap a lower-ranked contact enough to overtake another: the
+    points must persist without moving rows while details/options remain open.
+    Switch contacts, refresh, and rotate without reordering; close the expansion
+    or leave/return to apply the latest ranking. Confirm Settings displays the
+    installed version name and build number, including CI version overrides.
 
 Run these checks on Android 16/API 36 and Android 8.0/API 26 for the target and
 minimum supported versions. Newer emulators provide additional compatibility

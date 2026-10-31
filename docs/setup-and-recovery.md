@@ -2,10 +2,45 @@
 
 [Documentation index](README.md) | [BareShell introduction](../README.md)
 
-## First-run setup
+## First use
 
-Without a complete, supported saved configuration, the wizard starts with
-Home selection:
+New installations save a default layout and open **Top Apps** as Home without a
+configuration wizard:
+
+| From Home | Destination |
+| --- | --- |
+| Swipe left | Close Contacts |
+| Swipe right | Tasks |
+| Swipe down | Search |
+
+Only these one-finger gestures are assigned. Swipe up, shake, and two-finger
+gestures are unassigned; All Apps and All Contacts remain disabled until you
+configure them. Counts default to 10 with System colors and Monospace text.
+Existing completed layouts retain their Home and every shortcut.
+
+A one-time introduction shows sample apps in the same layout as Top Apps.
+The small top overlay asks you to **swipe left** for sample people, then
+**swipe right** back to apps. Tapping the instruction also advances the step.
+A four-box map shows Search above Apps, with Tasks on the left and Contacts
+on the right; short captions show the actual swipe directions.
+**Start** ends the introduction. Back revisits the previous step.
+Sample data is clearly labeled, never saved, and cannot launch apps, contact
+people, or create tasks.
+The tour requests no permissions; usage and contacts access can be enabled later.
+Tasks and app search work without either permission.
+
+Rotation preserves the current step. An unfinished tour resumes after a cold
+restart; a completed introduction never repeats, including after a wizard reset.
+Finishing saves completion before offering **Set as default Home** / **Not now**.
+Declining or canceling does not repeat the offer, and already-default launchers
+skip it. If initialization or completion cannot be saved, explicit feedback
+offers a retry rather than pretending setup succeeded.
+
+## Optional configuration wizard
+
+Long-press blank Home space for Settings, then select **Reset wizard** and confirm.
+The wizard also opens for invalid, incomplete, or unavailable saved layouts.
+It starts with Home selection:
 
 > Choose your Home screen
 
@@ -54,7 +89,9 @@ Home chooser unless BareShell is already the default. Declining or canceling
 does not repeat the offer on later launches. Settings always provides the action;
 completing a reset wizard may offer it again.
 Incomplete setup is not stored as a completed configuration and may restart after
-a fresh launch. Save failures offer a retry instead of reporting success.
+a fresh launch. An explicit reset is stored durably, so restarting still opens
+the wizard rather than replacing your choices with first-use defaults.
+Save failures offer a retry instead of reporting success.
 
 The completed Home and gesture settings are stored privately on this device.
 Cloud backup is disabled, and modern cloud/device-transfer rules exclude the
@@ -71,10 +108,13 @@ Android's separate default Home app selection is described below.
 
 ## Pages and navigation
 
+When Close Contacts is empty, a short hint suggests starring people in Contacts
+and explains that BareShell gradually learns favorites.
+
 | Page | Contents |
 | --- | --- |
-| Top Apps | Up to the selected count (default 10), balancing opening frequency and foreground time; tap to launch. |
-| Close Contacts | Up to the selected count (default 10): system stars first, then locally scored contacts; tap for inline actions. |
+| Top Apps | Up to the selected count (default 10), ranked by seven-day opens, ten-minute screen-time units, and manual points; tap to launch. |
+| Close Contacts | Up to the selected count (default 10): positive totals of the 50-point star bonus, tap history, and manual points; tap for inline actions. |
 | All Apps | Full alphabetical list of launchable app names; tap to launch. Scrolling reveals an alphabet rail. |
 | All Contacts | System-starred contacts first, alphabetical within each group; tap for inline actions. |
 | Search | App/contact display-name matches as you type; apps first, contacts second. |
@@ -114,6 +154,24 @@ and expanded contact (in that order) before navigating. Back at Home does
 not close the launcher. Ordinary returns from Settings or permission dialogs keep
 the relevant page instead of resetting it to Home.
 
+Hold any app name for **App Info, Up, Down**, or any contact name for
+**View, Edit, Up, Down**. Options appear inline below that name, replacing
+any previous expansion. Normal taps still launch apps or open contact
+call/message details. Back closes options before page navigation; changing the
+page/query closes them. App Info opens Android settings; View/Edit use the system
+Contacts handler. A hold earns no contact point; successful View/Edit earns one.
+Up adds 10 and Down subtracts 10 from a signed ranking balance, with no extra
+tap point. Each local calendar day moves the balance one point toward zero.
+Scores stay hidden, and All Apps, All Contacts, and Search keep their ordering.
+A contact with a zero/negative total leaves Close Contacts, even if starred;
+find it in All Contacts or Search to raise it again.
+
+Selecting any hold-menu action closes its options, including when the action
+fails. Contact tap points are saved immediately, but Close Contacts keeps its
+displayed order while any expansion is open, including when switching people or
+rotating. Closing the expansion or leaving and returning applies the latest
+ranking, so a tapped name does not move under your finger.
+
 Search matches names using case-insensitive substring matching and ignores outer
 query whitespace. Exact app-name matches appear before partial app-name matches,
 including single-character names such as X; order within each group is unchanged.
@@ -143,17 +201,19 @@ so slow swipes and pausing after moving still work.
 - **Monospace** is the default font; **System Sans** restores the previous
   proportional style. Font choices include samples. Theme and font changes
   apply immediately after a successful durable save and persist after restart.
-- **Theme · Colors** and **Font · Typography** have separate headings,
+- **Theme** and **Font** have separate headings,
   descriptions, and spacing. Choosing one never changes the other.
 - **Set as default Home** opens Android's Home chooser. Once selected, Settings
   shows **BareShell is your default Home** instead.
-- **Reset wizard** asks for confirmation and clears only Home, enabled-page,
+- **Reset wizard** asks for confirmation and resets only Home, enabled-page,
   and gesture choices. It keeps tasks, list counts, appearance, contact scores, permissions,
   and Android's default Home.
-- **Clear contact history** separately confirms removal of local scores.
-  It never changes system stars.
+- **Clear contact history** separately confirms removal of contact interaction
+  points and manual adjustments. It never changes system stars, app adjustments,
+  or tasks.
 
 Settings uses the selected appearance and supports scrolling and rotation.
+The installed version name and build number appear at the end of Settings.
 Storage failures show an error instead of claiming the change was saved.
 
 ### Tasks

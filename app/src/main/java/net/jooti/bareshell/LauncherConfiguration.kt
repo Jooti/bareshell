@@ -46,15 +46,33 @@ internal data class LauncherConfiguration(val home: Page, val bindings: Map<Page
 
 internal sealed interface ConfigurationRead {
     data object Missing : ConfigurationRead
+    data object SetupRequested : ConfigurationRead
     data object Invalid : ConfigurationRead
-    data class Ready(val configuration: LauncherConfiguration) : ConfigurationRead
+    data class Ready(
+        val configuration: LauncherConfiguration,
+        val introductionPending: Boolean = false,
+        val defaultHomePending: Boolean = false,
+    ) : ConfigurationRead
 }
+
+internal val defaultConfiguration = LauncherConfiguration(
+    Page.FAV_APPS,
+    mapOf(Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN),
+)
 
 internal fun readConfiguration(
     values: Map<String, *>,
     available: Set<Gesture> = Gesture.entries.toSet(),
 ): ConfigurationRead {
     if (values.isEmpty()) return ConfigurationRead.Missing
+    if (values == mapOf("setup_requested" to true)) return ConfigurationRead.SetupRequested
+    val introductionPending = if ("introduction_pending" in values) {
+        values["introduction_pending"] as? Boolean ?: return ConfigurationRead.Invalid
+    } else false
+    val defaultHomePending = if ("default_home_pending" in values) {
+        values["default_home_pending"] as? Boolean ?: return ConfigurationRead.Invalid
+    } else false
+    if (introductionPending && defaultHomePending) return ConfigurationRead.Invalid
     val version = values["version"]
     if (version != 1 && version != 2) return ConfigurationRead.Invalid
     val home = Page.entries.firstOrNull { it.name == values["home"] }
@@ -72,7 +90,7 @@ internal fun readConfiguration(
     }
     val keys = setOf("version", "home") + (if (version == 2) setOf("destinations") else emptySet()) +
         destinations.map { "gesture.${it.name}" }
-    if (values.keys != keys) {
+    if (values.keys != keys + values.keys.filter { it == "introduction_pending" || it == "default_home_pending" }) {
         return ConfigurationRead.Invalid
     }
     val bindings = destinations.associateWith { page ->
@@ -84,7 +102,7 @@ internal fun readConfiguration(
         return ConfigurationRead.Invalid
     }
     return ConfigurationRead.Ready(
-        LauncherConfiguration(home, bindings.mapValues { requireNotNull(it.value) }),
+        LauncherConfiguration(home, bindings.mapValues { requireNotNull(it.value) }), introductionPending, defaultHomePending,
     )
 }
 
