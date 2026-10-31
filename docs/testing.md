@@ -129,6 +129,30 @@ On an isolated target emulator/phone:
 19. Confirm separate Theme/Font headings, explanations, and independent selection.
     Inspect the logo in launcher masks and themed-icon light/dark modes; verify
     packaged identity `net.jooti.bareshell`, label BareShell, and private Settings.
+20. Hold names on Top Apps, All Apps, Close Contacts, All Contacts, and both Search
+    result types. Verify inline App Info/Up/Down and View/Edit/Up/Down order,
+    ordinary tap behavior, one active expansion, consumed holds with no tap
+    point, Back/query/page dismissal, restored selection, dimming/anchor behavior,
+    hidden alphabet rails, and blank-space Settings holds.
+21. Check app numeric points at 599,999/600,000/1,200,000 accumulated milliseconds,
+    foreground-entry deduplication, manual ranking without usage access, and
+    unchanged alphabetical/Search order. Check +50 stars, non-stars outranking
+    stars, and zero/negative starred exclusion. Successful View/Edit earns one
+    tap point; Up/Down applies only +/-10 and leaves interaction recency alone.
+22. Verify repeated adjustments, cancellation, positive/negative daily decay,
+    missed days, backward clocks, restart, rotation during a pending write,
+    explicit save failure, and no stale cached ranking after a successful write.
+    Upgrade a version-1 contact database without losing tap points, reconcile
+    changed/deleted identities and negative-only rows, and confirm contact-history
+    clearing removes both contact balances but preserves app adjustments/stars/tasks.
+    Exercise queued writes racing a clear, permission revocation, removed apps,
+    and unavailable App Info/View/Edit handlers on an isolated device.
+23. Verify every hold-menu action closes options, including failed handoffs and
+    Up/Down writes. Tap a lower-ranked contact enough to overtake another: the
+    points must persist without moving rows while details/options remain open.
+    Switch contacts, refresh, and rotate without reordering; close the expansion
+    or leave/return to apply the latest ranking. Confirm Settings displays the
+    installed version name and build number, including CI version overrides.
 
 Run these checks on Android 16/API 36 and Android 8.0/API 26 for the target and
 minimum supported versions. Newer emulators provide additional compatibility

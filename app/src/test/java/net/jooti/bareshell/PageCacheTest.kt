@@ -47,5 +47,12 @@ class PageCacheTest {
         assertFalse(PageContent(contacts = ContactsResult.Loaded(emptyList(), true)).cacheable(Page.FAV_CONTACTS))
         assertFalse(PageContent(AppListResult.Loaded(emptyList()), ContactsResult.Unavailable).cacheable(Page.SEARCH))
         assertFalse(PageContent().cacheable(Page.TASKS))
+        assertFalse(PageContent(AppListResult.Loaded(emptyList()), ContactsResult.Loaded(emptyList(), true))
+            .cacheable(Page.SEARCH))
+    }
+
+    @Test fun numericRankingInvalidatesLegacyCacheFormat() {
+        assertTrue(key(Page.FAV_APPS).startsWith("2|"))
+        assertTrue(key(Page.FAV_CONTACTS).startsWith("2|"))
     }
 }

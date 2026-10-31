@@ -136,7 +136,7 @@ internal class ContactRepository(private val context: Context, private val histo
                 history.reconcile(contacts, ::resolveLookup)
             } catch (error: SQLiteException) {
                 Log.e("BareShellContacts", "Contact history could not be loaded", error)
-                return ContactsResult.Loaded(favoriteContacts(contacts, limit = limit), historyUnavailable = true)
+                return ContactsResult.Unavailable
             }
             return ContactsResult.Loaded(favoriteContacts(contacts, limit = limit, scores = scores))
         } catch (error: SecurityException) {

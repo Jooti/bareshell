@@ -90,12 +90,12 @@
     <string name="wizard_home_explanation">This is what you see when you press Home. Tap one option.</string>
     <string name="wizard_access_later">Usage and contacts access can be enabled later. This choice does not change Android\u2019s default Home app. Long-press blank Home space to open Settings.</string>
     <plurals name="describe_fav_apps">
-        <item quantity="one">Up to %1$d app, balancing how often and how long you use it.</item>
-        <item quantity="other">Up to %1$d apps, balancing how often and how long you use them.</item>
+        <item quantity="one">Up to %1$d app, ranked by opens, screen-time points, and your adjustments.</item>
+        <item quantity="other">Up to %1$d apps, ranked by opens, screen-time points, and your adjustments.</item>
     </plurals>
     <plurals name="describe_fav_contacts">
-        <item quantity="one">Up to %1$d person: starred contacts first, then recent BareShell interactions.</item>
-        <item quantity="other">Up to %1$d people: starred contacts first, then recent BareShell interactions.</item>
+        <item quantity="one">Up to %1$d person, ranked by star bonus, interaction points, and your adjustments.</item>
+        <item quantity="other">Up to %1$d people, ranked by star bonus, interaction points, and your adjustments.</item>
     </plurals>
     <string name="describe_all_apps">Every app, in alphabetical order.</string>
     <string name="describe_all_contacts">Your contacts, with starred contacts first.</string>
@@ -128,9 +128,17 @@
     <string name="retry_save">Retry saving</string>
     <string name="no_fav_contacts">No close contacts yet. Star people in your Contacts app, or open a contact in All Contacts or Search.</string>
     <string name="view_contact">View contact</string>
-    <string name="contact_history_unavailable">Contact history unavailable. Showing starred contacts. Tap to retry.</string>
+    <string name="app_info">App Info</string>
+    <string name="option_view">View</string>
+    <string name="option_edit">Edit</string>
+    <string name="ranking_up">Up</string>
+    <string name="ranking_down">Down</string>
+    <string name="ranking_save_failed">Could not save this ranking change. Please try again.</string>
+    <string name="contact_history_unavailable">Contact history unavailable. Tap to retry.</string>
     <string name="contact_history_save_failed">Could not save this contact interaction. Please try again.</string>
     <string name="settings_title">Settings</string>
+    <string name="app_version">Version %1$s (%2$d)</string>
+    <string name="app_version_unavailable">Version unavailable</string>
     <string name="settings_open_failed">Cannot open launcher Settings. Please try again.</string>
     <string name="top_apps_count">Top Apps count</string>
     <string name="close_contacts_count">Close Contacts count</string>
@@ -143,9 +151,9 @@
     <string name="reset_wizard">Reset wizard</string>
     <string name="reset_wizard_explanation">Choose Home, enabled pages, and gestures again? Tasks, list counts, contact history, permissions, and Android\u2019s default launcher will stay unchanged.</string>
     <string name="clear_contact_history">Clear contact history</string>
-    <string name="clear_history_explanation">Remove BareShell contact scores? System-starred contacts will remain in Close Contacts.</string>
+    <string name="clear_history_explanation">Remove contact interaction points and Up/Down adjustments? System stars, app adjustments, and tasks will stay unchanged.</string>
     <string name="history_cleared">Contact history cleared. System stars are unchanged.</string>
-    <string name="contact_history_explanation">Close Contacts puts stars first. Opening a contact or handing an action to another app earns a point. Each local day removes one point; non-starred people leave at zero. Only BareShell interactions are counted, not completed calls or messages. History stays on this device.</string>
+    <string name="contact_history_explanation">Close Contacts ranks positive totals: 50 points for a system star, plus interaction points and Up/Down adjustments. Opening contact details or successfully handing an action to another app earns one point. Hold a name for View, Edit, Up (+10), or Down (-10). Each local day removes one interaction point and moves the manual balance one point toward zero. Scores stay hidden and on this device; completed calls and messages are not counted.</string>
     <string name="loading_contacts">Loading contacts&#8230;</string>
     <string name="contact_index_favorites">Fav</string>
     <string name="jump_to_contact_section">Jump to %1$s</string>

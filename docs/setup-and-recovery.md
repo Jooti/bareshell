@@ -73,8 +73,8 @@ Android's separate default Home app selection is described below.
 
 | Page | Contents |
 | --- | --- |
-| Top Apps | Up to the selected count (default 10), balancing opening frequency and foreground time; tap to launch. |
-| Close Contacts | Up to the selected count (default 10): system stars first, then locally scored contacts; tap for inline actions. |
+| Top Apps | Up to the selected count (default 10), ranked by seven-day opens, ten-minute screen-time units, and manual points; tap to launch. |
+| Close Contacts | Up to the selected count (default 10): positive totals of the 50-point star bonus, tap history, and manual points; tap for inline actions. |
 | All Apps | Full alphabetical list of launchable app names; tap to launch. Scrolling reveals an alphabet rail. |
 | All Contacts | System-starred contacts first, alphabetical within each group; tap for inline actions. |
 | Search | App/contact display-name matches as you type; apps first, contacts second. |
@@ -114,6 +114,24 @@ and expanded contact (in that order) before navigating. Back at Home does
 not close the launcher. Ordinary returns from Settings or permission dialogs keep
 the relevant page instead of resetting it to Home.
 
+Hold any app name for **App Info, Up, Down**, or any contact name for
+**View, Edit, Up, Down**. Options appear inline below that name, replacing
+any previous expansion. Normal taps still launch apps or open contact
+call/message details. Back closes options before page navigation; changing the
+page/query closes them. App Info opens Android settings; View/Edit use the system
+Contacts handler. A hold earns no contact point; successful View/Edit earns one.
+Up adds 10 and Down subtracts 10 from a signed ranking balance, with no extra
+tap point. Each local calendar day moves the balance one point toward zero.
+Scores stay hidden, and All Apps, All Contacts, and Search keep their ordering.
+A contact with a zero/negative total leaves Close Contacts, even if starred;
+find it in All Contacts or Search to raise it again.
+
+Selecting any hold-menu action closes its options, including when the action
+fails. Contact tap points are saved immediately, but Close Contacts keeps its
+displayed order while any expansion is open, including when switching people or
+rotating. Closing the expansion or leaving and returning applies the latest
+ranking, so a tapped name does not move under your finger.
+
 Search matches names using case-insensitive substring matching and ignores outer
 query whitespace. Exact app-name matches appear before partial app-name matches,
 including single-character names such as X; order within each group is unchanged.
@@ -150,10 +168,12 @@ so slow swipes and pausing after moving still work.
 - **Reset wizard** asks for confirmation and clears only Home, enabled-page,
   and gesture choices. It keeps tasks, list counts, appearance, contact scores, permissions,
   and Android's default Home.
-- **Clear contact history** separately confirms removal of local scores.
-  It never changes system stars.
+- **Clear contact history** separately confirms removal of contact interaction
+  points and manual adjustments. It never changes system stars, app adjustments,
+  or tasks.
 
 Settings uses the selected appearance and supports scrolling and rotation.
+The installed version name and build number appear at the end of Settings.
 Storage failures show an error instead of claiming the change was saved.
 
 ### Tasks

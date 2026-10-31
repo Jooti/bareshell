@@ -19,8 +19,8 @@ JVM tests mirror that package in
 | `DefaultHome` | Actual Home role/default detection and Android chooser/settings handoff. |
 | `LauncherConfiguration`, `ConfigurationStore` | Typed pages/gestures, wizard progression, validated private configuration. |
 | `GestureInput`, `GestureRecognition` | Blank-space hit testing, pointer tracking, swipes, and optional foreground shake. |
-| `LauncherPages`, `AlphabetIndex` | Cached text lists, Search input/results, contact expansion, and alphabet rails. |
-| `AppRepository`, ranking/frequency models | Eligible apps and public usage-based ranking. |
+| `LauncherPages`, `AlphabetIndex` | Cached text lists, Search input/results, mutually exclusive details/hold options, and alphabet rails. |
+| `AppRepository`, `AppRankingStore`, ranking/frequency models | Eligible apps, additive public usage points, and private package adjustments. |
 | `ContactRepository`, catalog/actions/history models | Permission-aware contacts, validated handoffs, local interaction scoring. |
 | `TasksPage`, `LauncherTask`, `TaskStore` | Compact task details/actions, separate drafts, pure transition rules, revision-checked SQLite. |
 | `PageCache`, `PageCacheStore` | Cache keys, invalidation, and private app/contact snapshots. |
@@ -32,6 +32,21 @@ JVM tests mirror that package in
 Catalog/filter work is off the UI thread. Activity-owned generation checks
 prevent obsolete results from updating the current page. Contact details are
 loaded lazily and revalidated after external returns.
+
+App/contact catalog work and ranking writes share a serial worker across
+Activity recreation. Accepted adjustments are not replayed, and pending writes
+disable ranking options until persistence completes. Signed `RankingAdjustment`
+balances decay toward zero by local calendar day, independently of contact tap
+points. Contact-history schema version 2 adds manual fields without replacing
+old interaction data. Lookup reconciliation merges both balances and preserves
+negative adjustments until exhausted.
+
+Close Contacts defers ranked-page refreshes while any expansion is open, while
+still saving tap points and revalidating the selected contact. The held list
+survives recreation as transient Activity state and is never restored without
+contacts permission. Closing the expansion or leaving the page applies the
+latest ranking. Hold actions dismiss options before writes or external handoffs;
+View/Edit revalidation remains generation-checked after dismissal.
 
 Tasks use a shared serial worker so reads after recreation follow pending
 writes. New tasks carry a stable UUID, and updates check the previous revision
@@ -55,6 +70,12 @@ query results; tasks reuse an in-memory snapshot and refresh from SQLite.
 First use without a snapshot still loads normally. Refresh failures remain
 visible rather than masquerading as a successful empty list. Snapshots are
 excluded from backup.
+
+Numeric ranking uses a new cache-key version. Ranked keys include the local day;
+successful score writes advance the affected ranked page epoch. Cache writes
+check the captured epoch under the same lock as invalidation so obsolete work
+cannot repopulate cleared snapshots. Refreshes preserve visible rows and active
+options/details where possible, but never preserve contacts after revocation.
 
 ## Compatibility boundaries
 

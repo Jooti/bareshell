@@ -19,6 +19,7 @@
     <item name="task_original_date" type="id" />
     <item name="task_action" type="id" />
     <item name="app_row" type="id" />
+    <item name="item_option" type="id" />
     <item name="usage_access" type="id" />
     <item name="status_message" type="id" />
     <item name="gesture_strip" type="id" />
@@ -36,6 +37,7 @@
     <item name="wizard_back" type="id" />
     <item name="wizard_continue" type="id" />
     <item name="settings_title" type="id" />
+    <item name="settings_app_version" type="id" />
     <item name="settings_back" type="id" />
     <item name="settings_top_count" type="id" />
     <item name="settings_close_count" type="id" />

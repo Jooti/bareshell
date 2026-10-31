@@ -19,9 +19,9 @@ class AppRankingTest {
     @Test
     fun highestForegroundTimeComesFirst() {
         val usage = listOf(
-            ForegroundUsage("foxtrot", 30),
-            ForegroundUsage("delta", 20),
-            ForegroundUsage("bravo", 10),
+            ForegroundUsage("foxtrot", 1_800_000),
+            ForegroundUsage("delta", 1_200_000),
+            ForegroundUsage("bravo", 600_000),
         )
         assertEquals(
             listOf("foxtrot", "delta", "bravo", "alpha", "charlie", "echo"),
@@ -32,9 +32,9 @@ class AppRankingTest {
     @Test
     fun allDailyRecordsForTheSamePackageAreSummed() {
         val usage = listOf(
-            ForegroundUsage("alpha", 40),
-            ForegroundUsage("bravo", 25),
-            ForegroundUsage("bravo", 25),
+            ForegroundUsage("alpha", 600_000),
+            ForegroundUsage("bravo", 350_000),
+            ForegroundUsage("bravo", 900_000),
         )
         assertEquals(listOf("bravo", "alpha"), rankedPackages(apps.takeLast(2), usage))
     }
@@ -49,7 +49,7 @@ class AppRankingTest {
 
     @Test
     fun tiedUsageIsAlphabetical() {
-        val usage = listOf(ForegroundUsage("echo", 100), ForegroundUsage("bravo", 100))
+        val usage = listOf(ForegroundUsage("echo", 600_000), ForegroundUsage("bravo", 600_000))
         assertEquals(listOf("bravo", "echo"), rankedPackages(apps, usage).take(2))
     }
 
@@ -101,7 +101,7 @@ class AppRankingTest {
             app("package.$it", "App ${it.toString().padStart(2, '0')}")
         }
         assertEquals(candidates.take(10).map { it.packageName }, rankedPackages(candidates.reversed()))
-        val usage = listOf(ForegroundUsage("package.12", 100))
+        val usage = listOf(ForegroundUsage("package.12", 600_000))
         assertEquals(
             listOf("package.12") + candidates.take(9).map { it.packageName },
             rankedPackages(candidates, usage),
@@ -125,16 +125,16 @@ class AppRankingTest {
     @Test
     fun foregroundScoresAreNotTruncatedToInt() {
         val usage = listOf(
-            ForegroundUsage("alpha", Int.MAX_VALUE.toLong() + 2),
-            ForegroundUsage("bravo", Int.MAX_VALUE.toLong() + 1),
+            ForegroundUsage("alpha", Int.MAX_VALUE.toLong() + 600_000),
+            ForegroundUsage("bravo", Int.MAX_VALUE.toLong()),
         )
         assertEquals(listOf("alpha", "bravo"), rankedPackages(apps.takeLast(2), usage))
     }
 
     @Test
-    fun frequentShortVisitsCompeteWithLongScreenTimeUsingEqualPercentileWeights() {
+    fun opensAndCompleteTenMinuteUnitsAddTogether() {
         val candidates = listOf(app("frequent", "Frequent"), app("long", "Long"), app("other", "Other"))
-        val usage = listOf(ForegroundUsage("frequent", 20), ForegroundUsage("long", 10000), ForegroundUsage("other", 1))
+        val usage = listOf(ForegroundUsage("frequent", 20), ForegroundUsage("long", 6_000_000), ForegroundUsage("other", 1))
         val opens = mapOf("frequent" to 100L, "long" to 1L, "other" to 5L)
         assertEquals(
             listOf("frequent", "long", "other"),
@@ -143,14 +143,12 @@ class AppRankingTest {
     }
 
     @Test
-    fun metricUnitsDoNotChangeRankAndTiedCombinedScoresAreAlphabetical() {
+    fun tiedNumericTotalsAreAlphabetical() {
         val candidates = listOf(app("a", "Alpha"), app("z", "Zulu"))
         val opens = mapOf("a" to 1L, "z" to 10L)
-        val usage = listOf(ForegroundUsage("a", 100), ForegroundUsage("z", 1))
+        val usage = listOf(ForegroundUsage("a", 5_400_000), ForegroundUsage("z", 1))
         val result = rankApps(candidates, usage, ownPackage, Locale.US, opens = opens)
         assertEquals(listOf("a", "z"), result.map { it.packageName })
-        assertEquals(result, rankApps(candidates, usage.map { it.copy(milliseconds = it.milliseconds * 1000) },
-            ownPackage, Locale.US, opens = opens))
     }
 
     @Test
@@ -165,12 +163,12 @@ class AppRankingTest {
     }
 
     @Test
-    fun normalizationIgnoresIneligiblePackagesAndDuplicateActivities() {
+    fun numericRankingIgnoresIneligiblePackagesAndDuplicateActivities() {
         val candidates = listOf(app("a", "Alpha"), app("b", "Bravo"), app("c", "Charlie"))
         val usage = listOf(ForegroundUsage("a", 1), ForegroundUsage("b", 100))
         val opens = mapOf("a" to 100L, "b" to 1L, "c" to 20L)
         val expected = rankApps(candidates, usage, ownPackage, Locale.US, opens = opens)
-        assertEquals(listOf("a", "b", "c"), expected.map { it.packageName })
+        assertEquals(listOf("a", "c", "b"), expected.map { it.packageName })
         val irrelevant = (1..25).map { ForegroundUsage("uninstalled.$it", 10000) }
         assertEquals(expected, rankApps(
             candidates + app(ownPackage, "Home") + candidates[0].copy(activityName = "a.ZActivity"),

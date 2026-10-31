@@ -9,27 +9,34 @@ import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicLong
 
 internal class ContactHistoryStore(context: Context) :
-    SQLiteOpenHelper(context, "contact_history.db", null, 1) {
+    SQLiteOpenHelper(context, "contact_history.db", null, 2) {
     override fun onCreate(db: SQLiteDatabase) {
-        db.execSQL("CREATE TABLE scores (lookup_key TEXT PRIMARY KEY NOT NULL, points INTEGER NOT NULL, decay_day INTEGER NOT NULL, last_interaction INTEGER NOT NULL)")
+        db.execSQL("CREATE TABLE scores (lookup_key TEXT PRIMARY KEY NOT NULL, points INTEGER NOT NULL, decay_day INTEGER NOT NULL, last_interaction INTEGER NOT NULL, manual_points INTEGER NOT NULL DEFAULT 0, manual_day INTEGER NOT NULL DEFAULT 0)")
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        throw SQLiteException("Unsupported contact history version")
+        if (oldVersion == 1 && newVersion == 2) {
+            db.execSQL("ALTER TABLE scores ADD COLUMN manual_points INTEGER NOT NULL DEFAULT 0")
+            db.execSQL("ALTER TABLE scores ADD COLUMN manual_day INTEGER NOT NULL DEFAULT 0")
+        } else throw SQLiteException("Unsupported contact history version")
     }
 
     private fun read(db: SQLiteDatabase): Map<String, ContactScore> = buildMap {
-        db.query("scores", arrayOf("lookup_key", "points", "decay_day", "last_interaction"),
+        db.query("scores", arrayOf("lookup_key", "points", "decay_day", "last_interaction", "manual_points", "manual_day"),
             null, null, null, null, null).use { cursor ->
             while (cursor.moveToNext()) {
                 val key = cursor.getString(0)
                 val points = cursor.getLong(1)
                 val day = cursor.getLong(2)
                 val time = cursor.getLong(3)
+                val manual = cursor.getLong(4)
+                val manualDay = cursor.getLong(5)
                 if (key.isNullOrBlank() || points !in 0..Int.MAX_VALUE.toLong() ||
-                    day !in LocalDate.MIN.toEpochDay()..LocalDate.MAX.toEpochDay() || time < 0
+                    day !in LocalDate.MIN.toEpochDay()..LocalDate.MAX.toEpochDay() || time < 0 ||
+                    manual !in Int.MIN_VALUE.toLong()..Int.MAX_VALUE.toLong() ||
+                    manualDay !in LocalDate.MIN.toEpochDay()..LocalDate.MAX.toEpochDay()
                 ) throw SQLiteException("Invalid contact history record")
-                put(key, ContactScore(points.toInt(), day, time))
+                put(key, ContactScore(points.toInt(), day, time, RankingAdjustment(manual.toInt(), manualDay)))
             }
         }
     }
@@ -40,6 +47,8 @@ internal class ContactHistoryStore(context: Context) :
             put("points", score.points)
             put("decay_day", score.decayDay)
             put("last_interaction", score.lastInteraction)
+            put("manual_points", score.adjustment.points)
+            put("manual_day", score.adjustment.decayDay)
         })
     }
 
@@ -83,7 +92,7 @@ internal class ContactHistoryStore(context: Context) :
         val next = mutableMapOf<String, ContactScore>()
         read(db).forEach { (key, stored) ->
             val score = stored.decay(today)
-            if (score.points > 0) {
+            if (score.points > 0 || score.adjustment.points != 0) {
                 val canonical = if (key in present) key else resolve(key)
                 if (canonical != null) next[canonical] = next[canonical]?.merge(score) ?: score
             }
@@ -91,6 +100,21 @@ internal class ContactHistoryStore(context: Context) :
         db.delete("scores", null, null)
         next.forEach { (key, score) -> write(db, key, score) }
         next
+    }
+
+    fun adjust(
+        lookupKey: String, delta: Int, today: Long = LocalDate.now().toEpochDay(),
+        expectedVersion: Long = version,
+    ): Boolean {
+        require(lookupKey.isNotBlank())
+        return transaction { db ->
+            if (expectedVersion != version) return@transaction false
+            val current = (read(db)[lookupKey] ?: ContactScore(0, today, 0)).decay(today)
+            val next = current.copy(adjustment = current.adjustment.adjust(delta, today))
+            db.delete("scores", "lookup_key = ?", arrayOf(lookupKey))
+            if (next.points > 0 || next.adjustment.points != 0) write(db, lookupKey, next)
+            true
+        }
     }
 
     fun clearHistory() = synchronized(lock) {

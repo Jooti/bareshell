@@ -36,9 +36,10 @@ import android.window.OnBackInvokedDispatcher
 import java.util.concurrent.Executors
 import java.util.concurrent.Future
 import java.time.ZonedDateTime
+import java.util.concurrent.atomic.AtomicBoolean
 
 class MainActivity : Activity() {
-    private val executor = Executors.newSingleThreadExecutor()
+    private val executor = catalogExecutor
     private val handler = Handler(Looper.getMainLooper())
     private var task: Future<*>? = null
     private var filterTask: Future<*>? = null
@@ -63,6 +64,7 @@ class MainActivity : Activity() {
     private lateinit var apps: AppRepository
     private lateinit var contacts: ContactRepository
     private lateinit var history: ContactHistoryStore
+    private lateinit var appRanking: AppRankingStore
     private lateinit var settingsStore: SettingsStore
     private lateinit var pageCache: PageCacheStore
     private var displayedCacheKey: String? = null
@@ -96,7 +98,8 @@ class MainActivity : Activity() {
         super.onCreate(savedInstanceState)
         homePromptPending = savedInstanceState?.getBoolean("home_prompt_pending") == true
         store = ConfigurationStore(applicationContext)
-        apps = AppRepository(applicationContext)
+        appRanking = AppRankingStore(applicationContext)
+        apps = AppRepository(applicationContext, appRanking)
         history = ContactHistoryStore(applicationContext)
         contacts = ContactRepository(applicationContext, history)
         settingsStore = SettingsStore(applicationContext)
@@ -167,8 +170,14 @@ class MainActivity : Activity() {
                 val expandedId = savedInstanceState?.getLong("expanded_contact", -1)?.takeIf { it >= 0 }
                 menu = ContactMenu(ContactExpansion(
                     expandedId, expandedId != null && savedInstanceState?.getBoolean("other_numbers") == true,
-                ))
+                ), options = when {
+                    expandedId != null && savedInstanceState?.getBoolean("contact_options") == true ->
+                        ItemTarget.Contact(expandedId)
+                    expandedId == null -> savedInstanceState?.getString("app_options")?.let { ItemTarget.App(it) }
+                    else -> null
+                }, saving = rankingWritePending.get())
                 pages?.setMenu(menu)
+                restoreHeldContacts(savedInstanceState?.getBundle("held_contacts"))
                 pages?.restoreState(savedInstanceState)
             }
             ConfigurationRead.Missing, ConfigurationRead.Invalid -> {
@@ -203,6 +212,9 @@ class MainActivity : Activity() {
         }
         refreshEventsRegistered = true
         reloadPreferences()
+        if (rankingSaveFailed.getAndSet(false)) {
+            Toast.makeText(this, R.string.ranking_save_failed, Toast.LENGTH_LONG).show()
+        }
         scheduleMidnight()
         wizard?.setForeground(true)
         if (configuration == null || configuration?.bindings?.containsValue(Gesture.SHAKE) == true) {
@@ -249,8 +261,7 @@ class MainActivity : Activity() {
         wizard?.dispose()
         pages?.dispose()
         tasksPage?.dispose()
-        executor.submit { history.close() }
-        executor.shutdown()
+        executor.submit { history.close(); appRanking.close() }
         super.onDestroy()
     }
 
@@ -260,6 +271,17 @@ class MainActivity : Activity() {
         outState.putString("query", searchQuery)
         outState.putLong("expanded_contact", menu.expansion.contactId ?: -1)
         outState.putBoolean("other_numbers", menu.expansion.otherNumbers)
+        outState.putBoolean("contact_options", menu.options is ItemTarget.Contact)
+        outState.putString("app_options", (menu.options as? ItemTarget.App)?.packageName)
+        if (holdingContactRanking()) {
+            val held = (content?.contacts as? ContactsResult.Loaded)?.contacts.orEmpty()
+            outState.putBundle("held_contacts", Bundle().apply {
+                putLongArray("ids", held.map { it.id }.toLongArray())
+                putStringArrayList("labels", ArrayList(held.map { it.label }))
+                putStringArrayList("keys", ArrayList(held.map { it.lookupKey }))
+                putBooleanArray("stars", held.map { it.starred }.toBooleanArray())
+            })
+        }
         pages?.saveState(outState)
         tasksPage?.let { page -> taskUiState = Bundle().also(page::saveState) }
         outState.putBundle("tasks_state", taskUiState)
@@ -504,6 +526,7 @@ class MainActivity : Activity() {
             this, page, searchQuery, ::launchApp, ::openUsageSettings, ::allowContacts,
             ::contactSettingsNeeded, ::refreshPage,
             ::selectContact, ::toggleOtherNumbers, ::loadContactDetails, ::launchContactAction,
+            ::holdApp, ::holdContact, ::appOption, ::contactOption,
         ) { query ->
             searchQuery = query
             closeContact()
@@ -528,6 +551,10 @@ class MainActivity : Activity() {
             tasksPage?.refresh()
             return
         }
+        if (holdingContactRanking()) {
+            if (menu.expansion.contactId != null) loadContactDetails()
+            return
+        }
         showCachedPage()
         cancelLoads()
         if (currentPage == Page.SEARCH && content != null) filterSearch()
@@ -537,6 +564,7 @@ class MainActivity : Activity() {
         val request = generation
         val page = currentPage
         val counts = listSettings
+        val epoch = pageCache.version(page)
         val cacheKey = cacheKey(page)
         task = executor.submit {
             val result = PageContent(
@@ -545,19 +573,27 @@ class MainActivity : Activity() {
                     contacts.load(favoritesOnly = page == Page.FAV_CONTACTS, starredFirst = page == Page.ALL_CONTACTS, limit = counts.closeContactsCount)
                 } else null,
             )
-            if (!Thread.currentThread().isInterrupted) pageCache.put(page, cacheKey, result)
+            if (!Thread.currentThread().isInterrupted) pageCache.put(page, cacheKey, result, epoch)
             runOnUiThread {
                 if (resumed && !isDestroyed && generation == request && currentPage == page) {
                     if (cacheKey != cacheKey(page)) {
                         refreshPage()
                         return@runOnUiThread
                     }
+                    if (holdingContactRanking() && result.contacts is ContactsResult.Loaded) {
+                        if (menu.expansion.contactId != null) loadContactDetails()
+                        return@runOnUiThread
+                    }
                     content = result
                     displayedCacheKey = cacheKey
+                    updateMenu(menu.copy(saving = rankingWritePending.get()))
                     val available = (result.contacts as? ContactsResult.Loaded)?.contacts.orEmpty()
                     if (menu.expansion.contactId != null && available.none { it.id == menu.expansion.contactId }) {
                         closeContact()
                     }
+                    val selectedApp = menu.options as? ItemTarget.App
+                    if (selectedApp != null && (result.apps as? AppListResult.Loaded)?.apps
+                            ?.none { it.packageName == selectedApp.packageName } != false) closeContact()
                     if (page == Page.SEARCH) {
                         filterSearch()
                     } else {
@@ -573,21 +609,54 @@ class MainActivity : Activity() {
         page, listSettings, resources.configuration.locales.toLanguageTags(),
         page == Page.FAV_APPS && apps.hasUsageAccess(),
         checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED,
-    ) + "|${pageCache.version(page)}"
+    ) + "|${pageCache.version(page)}" + if (page == Page.FAV_APPS || page == Page.FAV_CONTACTS) {
+        "|${ZonedDateTime.now().toLocalDate().toEpochDay()}"
+    } else ""
 
     private fun showCachedPage() {
+        if (holdingContactRanking()) return
         val key = cacheKey(currentPage)
         val cached = pageCache.get(currentPage, key)
         if (content != null && displayedCacheKey == key && cached != null) return
+        if (cached == null && content != null &&
+            (currentPage == Page.FAV_APPS || currentPage == Page.ALL_APPS ||
+                checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED)
+        ) return
         displayedCacheKey = key
         content = cached
-        if (menu.expansion.contactId != null) closeContact()
         if (cached == null) {
             pages?.showLoading()
         } else {
             val search = cachedSearch?.takeIf { it.first === cached && it.second == searchQuery }?.third
             pages?.show(cached, search, searchQuery)
         }
+
+    }
+
+    private fun holdingContactRanking(): Boolean =
+        currentPage == Page.FAV_CONTACTS && menu.expanded && content?.contacts is ContactsResult.Loaded &&
+            checkSelfPermission(Manifest.permission.READ_CONTACTS) == PackageManager.PERMISSION_GRANTED
+
+    private fun restoreHeldContacts(state: Bundle?) {
+        if (state == null || currentPage != Page.FAV_CONTACTS || !menu.expanded ||
+            checkSelfPermission(Manifest.permission.READ_CONTACTS) != PackageManager.PERMISSION_GRANTED
+        ) return
+        val ids = state.getLongArray("ids")
+        val labels = state.getStringArrayList("labels")
+        val keys = state.getStringArrayList("keys")
+        val stars = state.getBooleanArray("stars")
+        if (ids == null || labels == null || keys == null || stars == null ||
+            ids.size != labels.size || ids.size != keys.size || ids.size != stars.size
+        ) {
+            Log.w(TAG, "Invalid held contact list state")
+            return
+        }
+        val held = PageContent(contacts = ContactsResult.Loaded(ids.indices.map {
+            ContactEntry(ids[it], labels[it], stars[it], keys[it])
+        }))
+        content = held
+        displayedCacheKey = null
+        pages?.show(held)
     }
 
     private fun filterSearch() {
@@ -615,6 +684,8 @@ class MainActivity : Activity() {
                     if (menu.expansion.contactId != null && matches.contacts.none { it.id == menu.expansion.contactId }) {
                         closeContact()
                     }
+                    val selectedApp = menu.options as? ItemTarget.App
+                    if (selectedApp != null && matches.apps.none { it.packageName == selectedApp.packageName }) closeContact()
                     pages?.show(data, matches, query)
                     cachedSearch = Triple(data, query, matches)
                     if (menu.expansion.contactId != null) loadContactDetails()
@@ -687,7 +758,7 @@ class MainActivity : Activity() {
             hideKeyboard()
         } else if (tasksPage?.back() == true) {
             return
-        } else if (menu.expansion.contactId != null) {
+        } else if (menu.expanded) {
             if (menu.expansion.otherNumbers) {
                 updateMenu(menu.copy(expansion = menu.expansion.back()), true)
             } else closeContact(true)
@@ -696,23 +767,177 @@ class MainActivity : Activity() {
         }
     }
 
+    private fun holdApp(app: AppEntry) {
+        closeContact()
+        updateMenu(ContactMenu(options = ItemTarget.App(app.packageName)), true)
+    }
+
+    private fun holdContact(contact: ContactEntry) {
+        closeContact()
+        updateMenu(ContactMenu(ContactExpansion(contact.id), options = ItemTarget.Contact(contact.id)), true)
+        loadContactDetails()
+    }
+
+    private fun appOption(app: AppEntry, option: ItemOption) {
+        if (menu.options != ItemTarget.App(app.packageName) || rankingWritePending.get()) {
+            Log.w(TAG, "A stale or pending app option was rejected")
+            Toast.makeText(this, getString(R.string.app_unavailable, app.label), Toast.LENGTH_LONG).show()
+            return
+        }
+        closeContact(true)
+        try {
+            validateApp(app)
+            when (option) {
+                ItemOption.APP_INFO -> openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                    Uri.fromParts("package", app.packageName, null)))
+                ItemOption.UP, ItemOption.DOWN -> {
+                    val day = ZonedDateTime.now().toLocalDate().toEpochDay()
+                    saveAdjustment(Page.FAV_APPS) {
+                        validateApp(app)
+                        appRanking.adjust(app.packageName, if (option == ItemOption.UP) 10 else -10, day)
+                    }
+                }
+                ItemOption.VIEW, ItemOption.EDIT -> error("Not an app option")
+            }
+        } catch (error: ActivityNotFoundException) {
+            Log.w(TAG, "App option target is unavailable", error)
+            Toast.makeText(this, getString(R.string.app_unavailable, app.label), Toast.LENGTH_LONG).show()
+            refreshPage()
+        } catch (error: SecurityException) {
+            Log.w(TAG, "App option access was denied", error)
+            Toast.makeText(this, getString(R.string.app_unavailable, app.label), Toast.LENGTH_LONG).show()
+            refreshPage()
+        }
+    }
+
+    private fun validateApp(app: AppEntry) {
+        val intent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            .setComponent(ComponentName(app.packageName, app.activityName))
+        val target = packageManager.resolveActivity(intent, 0)?.activityInfo
+        if (target == null || !target.enabled || !target.exported || !target.applicationInfo.enabled ||
+            (target.permission != null && checkSelfPermission(target.permission) != PackageManager.PERMISSION_GRANTED)
+        ) throw ActivityNotFoundException("App is no longer launchable")
+    }
+
+    private fun validatedContact(contact: ContactEntry): ContactDetails {
+        val result = contacts.loadDetails(contact.id)
+        if (result == ContactDetailsResult.Denied) throw SecurityException("Contacts access was revoked")
+        val details = (result as? ContactDetailsResult.Loaded)?.details
+            ?: throw ActivityNotFoundException("Contact details are unavailable")
+        if (details.contact?.lookupKey != contact.lookupKey || contact.lookupKey.isBlank()) {
+            throw ActivityNotFoundException("Contact identity changed or is unavailable")
+        }
+        return details
+    }
+
+    private fun contactOption(contact: ContactEntry, option: ItemOption) {
+        if (menu.options != ItemTarget.Contact(contact.id) || menu.refreshing || rankingWritePending.get()) {
+            Log.w(TAG, "A stale or pending contact option was rejected")
+            Toast.makeText(this, R.string.contact_action_unavailable, Toast.LENGTH_LONG).show()
+            return
+        }
+        when (option) {
+            ItemOption.VIEW, ItemOption.EDIT -> {
+                val page = currentPage
+                val query = searchQuery
+                closeContact(true, refreshRanking = false)
+                val request = ++detailsGeneration
+                detailsTask = executor.submit {
+                    val result = contacts.loadDetails(contact.id)
+                    runOnUiThread {
+                        if (!resumed || isDestroyed || request != detailsGeneration ||
+                            currentPage != page || searchQuery != query
+                        ) return@runOnUiThread
+                        val details = (result as? ContactDetailsResult.Loaded)?.details
+                        val fresh = details?.contact
+                        if (fresh == null || fresh.lookupKey != contact.lookupKey || fresh.lookupKey.isBlank()) {
+                            Log.w(TAG, "Contact option target could not be revalidated")
+                            Toast.makeText(this, R.string.contact_action_unavailable, Toast.LENGTH_LONG).show()
+                            closeContact()
+                            refreshPage()
+                        } else {
+                            launchContactAction(if (option == ItemOption.VIEW) ContactAction.View(fresh)
+                                else ContactAction.Edit(fresh),
+                                details)
+                            if (resumed) refreshPage()
+                        }
+                    }
+                }
+            }
+            ItemOption.UP, ItemOption.DOWN -> {
+                val version = history.version
+                val day = ZonedDateTime.now().toLocalDate().toEpochDay()
+                saveAdjustment(Page.FAV_CONTACTS) {
+                    val fresh = requireNotNull(validatedContact(contact).contact)
+                    if (!history.adjust(fresh.lookupKey, if (option == ItemOption.UP) 10 else -10, day,
+                            expectedVersion = version)
+                    ) throw SQLiteException("Contact history was cleared before adjustment")
+                }
+            }
+            ItemOption.APP_INFO -> error("Not a contact option")
+        }
+    }
+
+    private fun saveAdjustment(page: Page, write: () -> Unit) {
+        if (!rankingWritePending.compareAndSet(false, true)) {
+            Log.w(TAG, "Ranking write already pending")
+            Toast.makeText(this, R.string.settings_saving, Toast.LENGTH_SHORT).show()
+            return
+        }
+        closeContact(true)
+        executor.submit {
+            var saved = false
+            try {
+                write()
+                pageCache.clear(page)
+                saved = true
+            } catch (error: SQLiteException) {
+                Log.e(TAG, "Ranking adjustment could not be persisted", error)
+            } catch (error: SecurityException) {
+                Log.w(TAG, "Ranking adjustment access was denied", error)
+            } catch (error: ActivityNotFoundException) {
+                Log.w(TAG, "Ranking adjustment target is unavailable", error)
+            } finally {
+                rankingWritePending.set(false)
+            }
+            if (!saved) rankingSaveFailed.set(true)
+            runOnUiThread {
+                if (!isDestroyed) {
+                    updateMenu(menu.copy(saving = false))
+                    if (rankingSaveFailed.getAndSet(false)) {
+                        Toast.makeText(this, R.string.ranking_save_failed, Toast.LENGTH_LONG).show()
+                    }
+                    if (resumed) refreshPage()
+                }
+            }
+        }
+    }
+
         private fun updateMenu(next: ContactMenu, animate: Boolean = false) {
-            if (next == menu) return
-            menu = next
-            pages?.setMenu(next, animate)
+            val current = next.copy(saving = rankingWritePending.get())
+            if (current == menu) return
+            menu = current
+            pages?.setMenu(current, animate)
         }
 
-        private fun closeContact(animate: Boolean = false) {
+        private fun closeContact(animate: Boolean = false, refreshRanking: Boolean = true) {
+            val wasExpanded = menu.expanded
             detailsGeneration++
             detailsTask?.cancel(true)
             updateMenu(ContactMenu(), animate)
+            if (refreshRanking && wasExpanded && resumed && currentPage == Page.FAV_CONTACTS) {
+                handler.post {
+                    if (resumed && !isDestroyed && currentPage == Page.FAV_CONTACTS && !menu.expanded) refreshPage()
+                }
+            }
         }
 
         private fun selectContact(contact: ContactEntry) {
-            val expansion = menu.expansion.toggle(contact.id)
+            val expansion = if (menu.options != null) ContactExpansion(contact.id) else menu.expansion.toggle(contact.id)
             if (expansion.contactId == null) {
                 closeContact(true)
             } else {
+                cancelLoads()
                 recordInteraction(contact)
                 updateMenu(ContactMenu(expansion), true)
                 loadContactDetails()
@@ -737,6 +962,10 @@ class MainActivity : Activity() {
         executor.submit {
             try {
                 history.record(contact.lookupKey, now, day, version)
+                pageCache.clear(Page.FAV_CONTACTS)
+                runOnUiThread {
+                    if (resumed && !isDestroyed && currentPage == Page.FAV_CONTACTS && !menu.expanded) refreshPage()
+                }
             } catch (error: SQLiteException) {
                 Log.e(TAG, "Could not persist a contact interaction", error)
                 runOnUiThread { if (!isDestroyed) Toast.makeText(this, R.string.contact_history_save_failed, Toast.LENGTH_LONG).show() }
@@ -786,9 +1015,10 @@ class MainActivity : Activity() {
             }
         }
 
-        private fun launchContactAction(action: ContactAction) {
-            val details = menu.result as? ContactDetailsResult.Loaded
-            if (menu.refreshing || menu.expansion.contactId == null || details?.details?.contains(action) != true) {
+        private fun launchContactAction(action: ContactAction, validatedDetails: ContactDetails? = null) {
+            val details = validatedDetails ?: (menu.result as? ContactDetailsResult.Loaded)?.details
+            if ((validatedDetails == null && (menu.refreshing || menu.expansion.contactId == null)) ||
+                details?.contains(action) != true) {
                 Log.w(TAG, "A stale contact action was rejected")
                 Toast.makeText(this, R.string.contact_action_unavailable, Toast.LENGTH_LONG).show()
                 return
@@ -802,6 +1032,9 @@ class MainActivity : Activity() {
             }
             val intent = when (action) {
                 is ContactAction.View -> Intent(Intent.ACTION_VIEW).setDataAndType(
+                    contactViewUri(action.contact), ContactsContract.Contacts.CONTENT_ITEM_TYPE,
+                )
+                is ContactAction.Edit -> Intent(Intent.ACTION_EDIT).setDataAndType(
                     contactViewUri(action.contact), ContactsContract.Contacts.CONTENT_ITEM_TYPE,
                 )
                 is ContactAction.Dial -> Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", action.phone.number, null))
@@ -822,7 +1055,7 @@ class MainActivity : Activity() {
                     throw ActivityNotFoundException("No available contact action handler")
                 }
                 startActivity(intent)
-                details.details.contact?.let(::recordInteraction)
+                details.contact?.let(::recordInteraction)
             } catch (error: ActivityNotFoundException) {
                 Log.w(TAG, "Contact action handler is unavailable")
                 Toast.makeText(this, R.string.contact_action_unavailable, Toast.LENGTH_LONG).show()
@@ -912,6 +1145,9 @@ class MainActivity : Activity() {
     }
 
     private companion object {
+        val catalogExecutor = Executors.newSingleThreadExecutor()
+        val rankingWritePending = AtomicBoolean()
+        val rankingSaveFailed = AtomicBoolean()
         var cachedSearch: Triple<PageContent, String, SearchMatches>? = null
         const val TAG = "BareShell"
         const val CONTACTS_REQUEST = 1

@@ -37,6 +37,10 @@ internal class LauncherPages(
     private val toggleNumbers: () -> Unit,
     private val retryDetails: () -> Unit,
     private val contactAction: (ContactAction) -> Unit,
+    private val holdApp: (AppEntry) -> Unit,
+    private val holdContact: (ContactEntry) -> Unit,
+    private val appOption: (AppEntry, ItemOption) -> Unit,
+    private val contactOption: (ContactEntry, ItemOption) -> Unit,
     onQuery: (String) -> Unit,
 ) {
     private data class Row(
@@ -47,6 +51,7 @@ internal class LauncherPages(
         val contactId: Long? = null,
         val dimCandidate: Boolean = false,
         val action: (() -> Unit)? = null,
+        val hold: (() -> Unit)? = null,
     )
     private data class Frame(val key: String, val top: Int, val color: Int)
     private val rows = mutableListOf<Row>()
@@ -80,9 +85,9 @@ internal class LauncherPages(
             text.id = row.id
             text.text = row.text
             text.textSize = if (row.id == R.id.app_row || row.id == R.id.contact_row) 24f else 16f
-            val selected = row.contactId == menu.expansion.contactId && row.contactId != null
+            val selected = row.key == menu.selectedKey
             text.setTextColor(context.appearanceColor(
-                if (row.dimCandidate && menu.expansion.dims(row.contactId)) {
+                if (row.dimCandidate && menu.expanded && !selected) {
                     R.color.foreground_muted
                 } else R.color.foreground,
             ))
@@ -91,7 +96,7 @@ internal class LauncherPages(
                 View.IMPORTANT_FOR_ACCESSIBILITY_NO
             } else View.IMPORTANT_FOR_ACCESSIBILITY_YES
             text.contentDescription = when (row.id) {
-                R.id.contact_row -> context.getString(
+                R.id.contact_row, R.id.app_row -> context.getString(
                     if (selected) R.string.contact_expanded else R.string.contact_collapsed, row.text,
                 )
                 R.id.other_numbers -> context.getString(
@@ -123,6 +128,11 @@ internal class LauncherPages(
         clipToPadding = false
         this.adapter = this@LauncherPages.adapter
         setOnItemClickListener { _, _, position, _ -> rows[position].action?.invoke() }
+        setOnItemLongClickListener { _, _, position, _ ->
+            val hold = rows[position].hold
+            hold?.invoke()
+            hold != null
+        }
     }
     private val index = if (page == Page.ALL_CONTACTS || page == Page.ALL_APPS) {
         AlphabetIndex(context) { position -> list.smoothScrollToPositionFromTop(position, 0, 0) }
@@ -210,9 +220,9 @@ internal class LauncherPages(
     }
 
     fun setMenu(next: ContactMenu, animate: Boolean = false) {
-        val wasExpanded = menu.expansion.contactId != null
+        val wasExpanded = menu.expanded
         menu = next
-        if (content != null && !wasExpanded && next.expansion.contactId != null && page != Page.SEARCH && !favorites) {
+        if (content != null && !wasExpanded && next.expanded && page != Page.SEARCH && !favorites) {
             spacerHeight = list.top
         }
         render(animate)
@@ -221,7 +231,7 @@ internal class LauncherPages(
     private fun render(animate: Boolean) {
         val data = content ?: return
         val next = mutableListOf<Row>()
-        val expanded = menu.expansion.contactId != null
+        val expanded = menu.expanded
         if (page != Page.SEARCH && !favorites) {
             (list.layoutParams as FrameLayout.LayoutParams).apply {
                 height = if (expanded) ViewGroup.LayoutParams.MATCH_PARENT else ViewGroup.LayoutParams.WRAP_CONTENT
@@ -240,7 +250,7 @@ internal class LauncherPages(
                 if (queryText.isNotBlank() && found != null) {
                     if (found.apps.isNotEmpty()) {
                         next += Row("apps_heading", context.getString(R.string.apps_heading), R.id.section_heading)
-                        found.apps.forEach { next += appRow(it) }
+                        found.apps.forEach { addApp(next, it) }
                     }
                     if (found.contacts.isNotEmpty()) {
                         next += Row("contacts_heading", context.getString(R.string.contacts_heading), R.id.section_heading)
@@ -273,9 +283,32 @@ internal class LauncherPages(
         return if (bucket.labelType == AlphabeticIndex.Bucket.LabelType.NORMAL) bucket.label else "#"
     }
 
-    private fun appRow(app: AppEntry) = Row(
-        "app:${app.packageName}", app.label, R.id.app_row, dimCandidate = true, action = { launch(app) },
-    )
+    private fun addApp(next: MutableList<Row>, app: AppEntry) {
+        next += Row("app:${app.packageName}", app.label, R.id.app_row, dimCandidate = true,
+            action = { launch(app) }, hold = { holdApp(app) })
+        if (menu.options != ItemTarget.App(app.packageName)) return
+        addOptions(next, "app:${app.packageName}", listOf(ItemOption.APP_INFO, ItemOption.UP, ItemOption.DOWN),
+            { appOption(app, it) })
+    }
+
+    private fun addOptions(
+        next: MutableList<Row>, key: String, options: List<ItemOption>, action: (ItemOption) -> Unit,
+        enabled: Boolean = true,
+    ) {
+        options.forEach { option ->
+            val label = when (option) {
+                ItemOption.APP_INFO -> R.string.app_info
+                ItemOption.VIEW -> R.string.option_view
+                ItemOption.EDIT -> R.string.option_edit
+                ItemOption.UP -> R.string.ranking_up
+                ItemOption.DOWN -> R.string.ranking_down
+            }
+            next += Row("$key:option:$option", context.getString(label), R.id.item_option, indent = 1,
+                action = if (enabled && !menu.saving) ({ action(option) }) else null)
+        }
+        if (menu.saving) next += Row("$key:saving", context.getString(R.string.settings_saving),
+            R.id.status_message, indent = 1)
+    }
 
     private fun addApps(next: MutableList<Row>, result: AppListResult?) {
         when (result) {
@@ -283,7 +316,7 @@ internal class LauncherPages(
                 "apps_error", context.getString(R.string.apps_unavailable), R.id.status_message, action = retry,
             )
             is AppListResult.Loaded -> {
-                result.apps.forEach { next += appRow(it) }
+                result.apps.forEach { addApp(next, it) }
                 if (result.apps.isEmpty()) next += Row("no_apps", context.getString(R.string.no_apps), R.id.status_message)
                 when (result.usageAccess) {
                     UsageAccess.REQUIRED -> next += Row(
@@ -316,6 +349,7 @@ internal class LauncherPages(
         next += Row(
             "contact:${contact.id}", contact.label, R.id.contact_row,
             contactId = contact.id, dimCandidate = true, action = { selectContact(contact) },
+            hold = { holdContact(contact) },
         )
         if (menu.expansion.contactId != contact.id) return
         fun status(resource: Int, retryAction: (() -> Unit)? = null) {
@@ -328,6 +362,15 @@ internal class LauncherPages(
             ContactDetailsResult.Missing -> status(R.string.contact_missing, retry)
             ContactDetailsResult.Denied -> status(R.string.contacts_denied, contactsAccess)
             is ContactDetailsResult.Loaded -> {
+                if (menu.options == ItemTarget.Contact(contact.id)) {
+                    val current = result.details.contact
+                    if (current != null) addOptions(next, "contact:${contact.id}",
+                        listOf(ItemOption.VIEW, ItemOption.EDIT, ItemOption.UP, ItemOption.DOWN),
+                        { contactOption(current, it) }, enabled = !menu.refreshing)
+                    else status(R.string.contact_missing, retry)
+                    if (menu.refreshing) status(R.string.contact_refreshing)
+                    return
+                }
                 fun phoneRow(phone: ContactPhone, sms: Boolean, indent: Int, labeled: Boolean) {
                     val description = if (labeled) context.getString(R.string.phone_description, phone.label, phone.number) else phone.number
                     val action = if (sms) ContactAction.Sms(phone) else ContactAction.Dial(phone)
@@ -407,7 +450,7 @@ internal class LauncherPages(
         val generation = ++renderGeneration
         val before = frames()
         val keys = next.mapTo(mutableSetOf()) { it.key }
-        val selectedKey = menu.expansion.contactId?.let { "contact:$it" }
+        val selectedKey = menu.selectedKey
         val restored = restoredAnchor?.takeIf { it.first in keys }
         val anchor = restored
             ?: before.firstOrNull { it.key == selectedKey }?.let { it.key to it.top }
@@ -453,7 +496,8 @@ internal class LauncherPages(
     }
 
     fun saveState(state: Bundle) {
-        frames().firstOrNull()?.let {
+        val visible = frames()
+        (visible.firstOrNull { it.key == menu.selectedKey } ?: visible.firstOrNull())?.let {
             state.putString("list_anchor", it.key)
             state.putInt("list_anchor_top", it.top)
         }

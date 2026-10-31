@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.database.sqlite.SQLiteException
 import android.os.Build
 import android.os.Bundle
@@ -184,6 +185,7 @@ class SettingsActivity : Activity() {
                 onTextClick { if (!work.busy) click() }
             }, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
+
         action(getString(R.string.settings_top_count, work.settings.topAppsCount), R.id.settings_top_count) { count(true) }
         action(getString(R.string.settings_close_count, work.settings.closeContactsCount), R.id.settings_close_count) { count(false) }
         val defaultHome = isDefaultHome()
@@ -250,6 +252,22 @@ class SettingsActivity : Activity() {
         if (work.status != 0) body.addView(textLabel(getString(work.status), R.id.settings_status).apply {
             accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
         })
+        body.addView(textLabel(installedVersion(), R.id.settings_app_version))
+    }
+
+    @Suppress("DEPRECATION")
+    private fun installedVersion(): String = try {
+        val info = packageManager.getPackageInfo(packageName, 0)
+        val name = info.versionName?.takeIf { it.isNotBlank() }
+            ?: throw IllegalStateException("Installed app has no version name")
+        val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) info.longVersionCode else info.versionCode.toLong()
+        getString(R.string.app_version, name, code)
+    } catch (error: PackageManager.NameNotFoundException) {
+        Log.e("BareShellSettings", "Installed app version is unavailable", error)
+        getString(R.string.app_version_unavailable)
+    } catch (error: IllegalStateException) {
+        Log.e("BareShellSettings", "Installed app version is invalid", error)
+        getString(R.string.app_version_unavailable)
     }
 
     private fun count(apps: Boolean) {

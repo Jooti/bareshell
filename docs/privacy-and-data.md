@@ -19,30 +19,48 @@ device transfer. There is no network sync, reminder service, or data export.
 
 ## Contacts access and privacy
 
-Close Contacts reads the system's `STARRED` flag. Stars come first,
-alphabetically, within the selected total count; star or unstar people in the
-Contacts app, then return to BareShell to refresh. If stars fill the count,
-scored non-starred people are not shown. Favorites kept privately by another
-app, instead of in Android's Contacts Provider, are not accessible.
-There is no in-launcher editing or favorite selection.
+Close Contacts ranks the sum of **50 points for a system star**, local interaction
+points, and a signed manual adjustment. Only positive totals are included,
+including for stars. People with more than 50 interaction/adjustment points can
+outrank a star. Ties use most recent interaction, then locale-aware name and
+stable identity, before applying the selected count cap. Star/unstar people in
+the Contacts app, then return to refresh. Favorites kept privately by another
+app, instead of Android's Contacts Provider, are not accessible.
 
-Remaining slots contain positive-score non-stars, ordered by score, most recent
-interaction, then locale-aware name and stable identity. Opening a contact's
-inline menu earns **one point**. A successful external View/Call/SMS/Telegram/
-WhatsApp handoff earns **another point**. This applies in Close Contacts,
+Opening a contact's normal inline details earns **one point**. A successful
+external View/Edit/Call/SMS/Telegram/WhatsApp handoff earns **another point**.
+This applies in Close Contacts,
 All Contacts, and Search. Closing or switching away, opening Other numbers,
 typing a query, failed actions, returning, refreshing, and recreation do not
 earn points. Explicitly opening another contact does.
 
-Each elapsed **local calendar day** subtracts one point, clamped to zero.
+Each elapsed **local calendar day** subtracts one interaction point, clamped to zero.
 Missed days are applied together; repeated reads on the same day do not decay
 again, and a backward clock does not create negative elapsed days. Zero-score
-non-stars leave Close Contacts; stars remain eligible. Decay runs on reads,
+contacts leave Close Contacts unless their star bonus or manual balance keeps
+the total positive. Decay runs on reads,
 resume, foreground midnight, and date/time/time-zone changes, without a service.
-Private SQLite rows store only lookup keys, points, the decay day, and the last
-interaction time. Lookup reconciliation handles changed identities/merges and
+Private SQLite rows store only lookup keys, interaction points/day, manual
+points/day, and the last interaction time. Existing interaction history is
+preserved when upgrading. Lookup reconciliation handles changed identities/merges and
 prunes deleted contacts. Provider failure or denied permission does not erase
-history; a history failure explicitly falls back to stars with a retry action.
+history; a history failure shows an unavailable/retry action rather than
+discarding manual penalties and claiming a successful stars-only ranking.
+
+Hold any contact name for inline **View, Edit, Up, Down** options instead of
+normal call/message details. View and Edit open the system contact handler;
+there is no internal editor or WRITE_CONTACTS permission. Up adds 10 and Down
+subtracts 10 from one signed balance. Holds, closing options, and Up/Down earn
+no interaction points and do not change interaction recency. Scores stay hidden.
+Selecting any option closes the hold menu. Interaction points are saved at once,
+but Close Contacts defers reordered rows until its expansion closes or the user
+leaves the page; selecting another person keeps the current order stable.
+Positive and negative manual balances move toward zero by one point per elapsed
+local calendar day; repeated adjustments accumulate or cancel, rather than
+decaying independently. Missed decay is applied before adjustments; a backward
+clock cannot restart decay. Negative balances remain stored until exhausted.
+Clearing contact history removes tap points and contact manual balances,
+not system stars, app adjustments, or tasks.
 
 All Contacts puts that starred group first and sorts names alphabetically within
 each group. This is **favorites-first, not frequency ranking**: Android 10+
@@ -75,7 +93,8 @@ The list reads only aggregated contact identities, display names, and the
 system-starred flag. Phone numbers, labels/default flags, and supported messenger
 data rows are read lazily for the selected contact. Same-named contacts retain
 their distinct identities. Numbers and action details stay in memory, not saved
-preferences or logs. Emails, photos, and contact edits are not used.
+preferences or logs. Emails and photos are not used; edits happen in the
+external Contacts app.
 
 Address-book contents, phone numbers, usage history, and search queries are not
 copied into the score database or uploaded. Scores describe interest inside
@@ -104,12 +123,12 @@ named launcher activities in the same package do not get separate app rows.
 An item appearing in another launcher therefore does not guarantee it appears
 in BareShell's app lists or Search.
 
-Ordering gives **equal 50/50 weight** to foreground-entry frequency and total
-foreground time over seven days, including use outside BareShell. For each
-metric, a positive app's percentile is the fraction of positive eligible app
-values less than or equal to it; zero maps to zero. The two percentiles are
-averaged. Normalization happens before applying the count cap, so changing the
-count does not change relative scores. Apps are deduplicated/filtered first.
+Ordering adds **one point per foreground entry** over seven days, **one point
+per complete ten minutes of accumulated foreground time**, and the app's signed
+manual balance. Usage outside BareShell is included. Sum all daily milliseconds
+before dividing by 600,000, so partial minutes carry across daily buckets.
+Scores are numeric internally but never shown. Apps are deduplicated/filtered
+first, and the count cap is applied after sorting.
 
 Frequency uses public foreground/resume events, deduplicating consecutive events
 from the same package. Screen-off, lock, and shutdown events reset that session.
@@ -122,8 +141,15 @@ overlapping daily buckets, so the oldest day can include time outside a strict
 rolling seven-day boundary. This is a combined usage ranking, not precise
 stopwatch-style accounting.
 
+Hold an app name in Top Apps, All Apps, or Search for inline **App Info, Up,
+Down**. App Info opens Android's settings for that package. Up/Down adjusts its
+balance by +/-10, with the same one-point-per-local-day decay toward zero as
+contacts. Private SQLite stores package names, balances, and decay days, not
+usage records. Removed apps are pruned only after successful discovery.
+
 Equal scores sort alphabetically using the current locale. Apps without history
-fill remaining slots alphabetically. If fewer than the selected count of
+or adjustments fill remaining slots alphabetically; negative totals remain
+eligible behind higher totals. If fewer than the selected count of
 eligible apps exist, all of them are shown.
 
 To enable usage ranking:
@@ -134,8 +160,9 @@ To enable usage ranking:
 
 This is the special `PACKAGE_USAGE_STATS` access granted in Settings, not a
 standard runtime permission prompt. Declaring it does not grant it automatically.
-While denied or revoked, the launcher remains usable with the selected count of alphabetical apps
-and the access action. Granted access with no history also uses alphabetical
+While denied or revoked, the launcher remains usable with manual-adjustment
+ranking (alphabetical if no adjustments) and the access action.
+Granted access with no history or adjustments also uses alphabetical
 ordering, but does not show the access action. Unexpected failures display a
 retry message rather than silently treating failed queries as empty history.
 

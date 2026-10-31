@@ -12,8 +12,8 @@ Choose a Home page, include the other pages you want, and give each a gesture:
 
 | Page | What it does |
 | --- | --- |
-| **Top Apps** | Your most-used apps, balancing opening frequency and foreground time. |
-| **Close Contacts** | Starred people first, then contacts you interact with in BareShell. |
+| **Top Apps** | Apps ranked by seven-day opening and screen-time points, plus your adjustments. |
+| **Close Contacts** | People ranked by a 50-point star bonus, interaction points, and your adjustments. |
 | **All Apps** | An alphabetical app list with an on-scroll alphabet rail. |
 | **All Contacts** | Your contacts, with starred people first and inline actions. |
 | **Search** | Find apps and contacts; the keyboard opens ready to replace the last query. |
@@ -30,6 +30,10 @@ Settings.
   down the screen, even with long lists.
 - **Fast returns:** cached-first pages refresh behind their last successful
   content rather than showing a loading screen on every visit.
+- **Hold for options:** hold any app name for App Info, Up, or Down; hold a
+  person for View, Edit, Up, or Down. Up/Down adds/subtracts 10 ranking points.
+  Your signed adjustment moves one point toward zero each local day. Scores
+  stay hidden, and normal taps and alphabetical lists work as before.
 - **Simple tasks:** tap for Finish, Postpone, Cancel task, or Edit. Notes and
   original dates stay with each task; closed tasks can be reopened.
 - **Your appearance:** System, Dark, Light, Terminal Green, and Neutral Gray
