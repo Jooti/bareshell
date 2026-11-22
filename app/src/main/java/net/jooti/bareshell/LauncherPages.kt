@@ -242,7 +242,7 @@ internal class LauncherPages(
             if (!expanded) spacerHeight = 0
         }
         when (page) {
-            Page.TASKS -> error("Tasks uses its own page")
+            Page.TASKS, Page.CALENDAR -> error("This page uses its own view")
             Page.FAV_APPS, Page.ALL_APPS -> addApps(next, data.apps)
             Page.ALL_CONTACTS, Page.FAV_CONTACTS -> addContacts(next, data.contacts)
             Page.SEARCH -> {

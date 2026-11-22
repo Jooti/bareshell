@@ -39,6 +39,7 @@ internal class WelcomeOverlay(
     private val context: Context,
     initialStep: WelcomeStep,
     private val onFinish: () -> Unit,
+    private val configuration: LauncherConfiguration = defaultConfiguration,
 ) {
     val view = FrameLayout(context).apply {
         setBackgroundColor(context.appearanceColor(R.color.background))
@@ -168,7 +169,10 @@ internal class WelcomeOverlay(
         orientation = LinearLayout.VERTICAL
         layoutDirection = View.LAYOUT_DIRECTION_LTR
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
-        contentDescription = context.getString(R.string.welcome_map_description)
+        contentDescription = context.getString(R.string.calendar_shortcut_map, context.getString(configuration.home.labelRes),
+            configuration.bindings.entries.joinToString(". ") { (page, gesture) ->
+                "${context.getString(gesture.labelRes)}: ${context.getString(page.labelRes)}"
+            })
         fun box(label: Int, gesture: Gesture? = null): View = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(context.dp(4), context.dp(4), context.dp(4), context.dp(4))
@@ -190,26 +194,33 @@ internal class WelcomeOverlay(
         addView(LinearLayout(context).apply {
             gravity = Gravity.CENTER
             addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
-            addView(box(R.string.search, defaultConfiguration.bindings.getValue(Page.SEARCH)),
+            if (configuration.enables(Page.SEARCH)) addView(box(R.string.search, configuration.bindings[Page.SEARCH]),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
         })
         addView(LinearLayout(context).apply {
             gravity = Gravity.TOP
-            addView(box(R.string.tasks, defaultConfiguration.bindings.getValue(Page.TASKS)),
+            if (configuration.enables(Page.TASKS)) addView(box(R.string.tasks, configuration.bindings[Page.TASKS]),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(context.textLabel("\u2190", R.id.welcome_map_arrow).apply {
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 setPadding(0, 0, 0, 0)
             })
-            addView(box(R.string.welcome_map_apps),
+            addView(box(if (configuration.home == Page.FAV_APPS) R.string.welcome_map_apps else configuration.home.labelRes),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(context.textLabel("\u2192", R.id.welcome_map_arrow).apply {
                 importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO
                 setPadding(0, 0, 0, 0)
             })
-            addView(box(R.string.welcome_map_contacts, defaultConfiguration.bindings.getValue(Page.FAV_CONTACTS)),
+            if (configuration.enables(Page.FAV_CONTACTS)) addView(box(R.string.welcome_map_contacts, configuration.bindings[Page.FAV_CONTACTS]),
                 LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+        })
+        if (configuration.enables(Page.CALENDAR)) addView(LinearLayout(context).apply {
+            gravity = Gravity.CENTER
+            addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
+            addView(box(R.string.calendar, configuration.bindings[Page.CALENDAR]),
+                LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            addView(View(context), LinearLayout.LayoutParams(0, 0, 1f))
         })
     }
 }

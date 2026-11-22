@@ -20,8 +20,10 @@ import android.widget.TextView
 
 /** Dependency-free device checks. Run only against an isolated test installation. */
 class FirstUseInstrumentation : Instrumentation() {
+    private var calendarChecks = false
     override fun onCreate(arguments: Bundle?) {
         super.onCreate(arguments)
+        calendarChecks = arguments?.getString("calendar") == "true"
         start()
     }
 
@@ -31,6 +33,8 @@ class FirstUseInstrumentation : Instrumentation() {
             persistence()
             failedWrites()
             overlayIsolation()
+            CalendarInstrumentationChecks(this).dates()
+            if (calendarChecks) CalendarInstrumentationChecks(this).providerAndEditor()
             finish(Activity.RESULT_OK, Bundle().apply { putString("result", "First-use persistence and overlay checks passed") })
         } catch (error: Exception) {
             finish(Activity.RESULT_CANCELED, Bundle().apply { putString("failure", Log.getStackTraceString(error)) })
@@ -186,11 +190,13 @@ class FirstUseInstrumentation : Instrumentation() {
             (0 until view.childCount).flatMap { boxes(view.getChildAt(it)) }
         } else emptyList()
         val boxes = boxes(map)
-        check(boxes.map { it.text.toString() } == listOf("Search", "Tasks", "Apps", "Contacts"))
+        check(boxes.map { it.text.toString() } == listOf("Search", "Tasks", "Apps", "Contacts", "Calendar"))
         val bounds = boxes.map { Rect().also(it::getGlobalVisibleRect) }
         check(kotlin.math.abs(bounds[0].centerX() - bounds[2].centerX()) <= 2)
         check(bounds[0].bottom <= bounds[2].top)
         check(bounds[1].right < bounds[2].left && bounds[2].right < bounds[3].left)
+        check(bounds[4].top >= bounds[2].bottom)
+        check(kotlin.math.abs(bounds[4].centerX() - bounds[2].centerX()) <= 2)
     }
 
     private fun waitFor(message: String, condition: () -> Boolean) {

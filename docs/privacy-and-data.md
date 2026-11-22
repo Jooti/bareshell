@@ -17,6 +17,28 @@ permission, count, and history invalidation prevent reuse of inappropriate
 snapshots. Tasks, preferences, scores, and snapshots are excluded from backup/
 device transfer. There is no network sync, reminder service, or data export.
 
+## Calendar access
+
+Calendar reads selected visible calendars from Android's Calendar Provider.
+READ_CALENDAR is requested only through an explicit access/selection action.
+WRITE_CALENDAR is requested for an explicit add/edit action. Both are optional;
+read-only calendars can be displayed without editing. Revocation clears
+calendar rows and editor content, and provider failures show explicit feedback.
+
+Events, recurrence occurrences, and selected details are read on workers.
+Titles, notes, locations, and editor drafts are not persisted in a launcher
+event database, snapshots, or logs. Transient activity state preserves drafts
+through recreation. Preferences store selected calendar provider IDs/account
+identities, the new-event default, and date display choices, excluded from backup.
+
+New events write to the selected writable default; edits stay in the event's
+original calendar. Existing
+calendar account sync may upload those edits according to that account's
+settings; BareShell adds no network permission, account login, or sync service.
+Existing reminders/attendees are not edited. Recurring edits are handed to the
+calendar application. No calendar accounts are created or deleted, and clearing
+contact history/resetting the wizard does not remove events.
+
 ## Contacts access and privacy
 
 Close Contacts ranks the sum of **50 points for a system star**, local interaction

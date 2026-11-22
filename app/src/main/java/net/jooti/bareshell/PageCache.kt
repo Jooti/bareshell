@@ -12,7 +12,7 @@ internal fun pageCacheKey(
         Page.FAV_APPS -> "${settings.topAppsCount}:$usageAllowed"
         Page.FAV_CONTACTS -> "${settings.closeContactsCount}:$contactsAllowed"
         Page.ALL_CONTACTS, Page.SEARCH -> contactsAllowed.toString()
-        Page.ALL_APPS, Page.TASKS -> ""
+        Page.ALL_APPS, Page.TASKS, Page.CALENDAR -> ""
     },
 ).joinToString("|")
 
@@ -22,5 +22,5 @@ internal fun PageContent.cacheable(page: Page): Boolean = when (page) {
         contacts == ContactsResult.Denied
     Page.SEARCH -> apps is AppListResult.Loaded &&
         (contacts is ContactsResult.Loaded && !contacts.historyUnavailable || contacts == ContactsResult.Denied)
-    Page.TASKS -> false
+    Page.TASKS, Page.CALENDAR -> false
 }

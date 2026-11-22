@@ -2,6 +2,7 @@ package net.jooti.bareshell
 
 import android.app.Activity
 import android.app.AlertDialog
+import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -10,6 +11,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.icu.util.ULocale
+import android.net.Uri
+import android.provider.Settings
 import android.util.Log
 import android.view.ViewGroup
 import android.view.WindowInsets
@@ -35,6 +39,9 @@ internal class SettingsWork(context: Context) {
     var resetCompleted = false
         private set
     var listener: (() -> Unit)? = null
+    var calendars: CalendarRead<List<DeviceCalendar>>? = null
+        private set
+    private var loadingCalendars = false
 
     init {
         when (val result = store.load()) {
@@ -71,6 +78,18 @@ internal class SettingsWork(context: Context) {
     }
 
     fun save(next: LauncherSettings) = perform(R.string.settings_saved, { store.save(next) }) { settings = next }
+    fun loadCalendars() {
+        if (loadingCalendars) return
+        loadingCalendars = true
+        executor.submit {
+            val result = CalendarRepository(app).calendars()
+            handler.post {
+                loadingCalendars = false
+                calendars = result
+                listener?.invoke()
+            }
+        }
+    }
     fun reset() = perform(R.string.settings_saved, { configuration.reset() }) { resetCompleted = true }
     fun clearHistory() = perform(R.string.history_cleared, {
         history.clearHistory()
@@ -91,6 +110,8 @@ class SettingsActivity : Activity() {
     private lateinit var appliedSettings: LauncherSettings
     private lateinit var scroll: ScrollView
     private var homeRequestInFlight = false
+    private var calendarChooserWanted = false
+    private var calendarDialog: AlertDialog? = null
 
     @Suppress("DEPRECATION")
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -98,6 +119,7 @@ class SettingsActivity : Activity() {
         applyAppearance(appliedSettings)
         super.onCreate(savedInstanceState)
         homeRequestInFlight = savedInstanceState?.getBoolean("home_request_in_flight") == true
+        calendarChooserWanted = savedInstanceState?.getBoolean("calendar_chooser") ?: intent.getBooleanExtra("calendar_settings", false)
         work = lastNonConfigurationInstance as? SettingsWork ?: SettingsWork(applicationContext)
         body = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -127,6 +149,7 @@ class SettingsActivity : Activity() {
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putBoolean("home_request_in_flight", homeRequestInFlight)
         outState.putInt("settings_scroll", scroll.scrollY)
+        outState.putBoolean("calendar_chooser", calendarChooserWanted || calendarDialog?.isShowing == true)
         super.onSaveInstanceState(outState)
     }
 
@@ -138,6 +161,7 @@ class SettingsActivity : Activity() {
 
     override fun onResume() {
         super.onResume()
+        work.loadCalendars()
         render()
     }
 
@@ -159,6 +183,7 @@ class SettingsActivity : Activity() {
     override fun onRetainNonConfigurationInstance(): Any = work
 
     override fun onDestroy() {
+        calendarDialog?.dismiss()
         if (!isChangingConfigurations) work.close()
         super.onDestroy()
     }
@@ -188,6 +213,27 @@ class SettingsActivity : Activity() {
 
         action(getString(R.string.settings_top_count, work.settings.topAppsCount), R.id.settings_top_count) { count(true) }
         action(getString(R.string.settings_close_count, work.settings.closeContactsCount), R.id.settings_close_count) { count(false) }
+        body.addView(textLabel(getString(R.string.calendar), R.id.calendar_heading, true).apply {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) isAccessibilityHeading = true
+        })
+        val availableCalendars = (work.calendars as? CalendarRead.Loaded)?.value.orEmpty()
+        val calendarName = work.settings.eventCalendars?.let { getString(R.string.calendar_selected_count, it.size) }
+            ?: getString(R.string.calendar_automatic)
+        action(getString(R.string.calendar_source_setting, calendarName), R.id.calendar_source_setting) {
+            chooseCalendar()
+        }
+        val writeCalendar = defaultWriteCalendar(selectedCalendars(availableCalendars, work.settings), work.settings)
+        action(getString(R.string.calendar_write_setting, writeCalendar?.name ?: getString(R.string.option_choose)),
+            R.id.calendar_write_setting) { chooseWriteCalendar() }
+        val dates = CalendarDates(this, work.settings.dateSystem)
+        val systemName = if (!dates.supported) getString(R.string.calendar_system_unavailable) else if (work.settings.dateSystem == "device") {
+            getString(R.string.calendar_device_system, dates.name)
+        } else dates.name
+        action(getString(R.string.calendar_system_setting, systemName), R.id.calendar_system_setting) { chooseDateSystem() }
+        action(getString(R.string.calendar_format_setting, dateFormatLabel(work.settings.dateFormat)),
+            R.id.calendar_format_setting) { chooseDateFormat() }
+        action(getString(R.string.calendar_weekday_setting, getString(weekdayLabel(work.settings.weekday))),
+            R.id.calendar_weekday_setting) { chooseWeekday() }
         val defaultHome = isDefaultHome()
         action(getString(if (defaultHome) R.string.default_home_current else R.string.default_home_set), R.id.settings_default_home) {
             if (!homeRequestInFlight && !defaultHome) {
@@ -253,6 +299,161 @@ class SettingsActivity : Activity() {
             accessibilityLiveRegion = android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE
         })
         body.addView(textLabel(installedVersion(), R.id.settings_app_version))
+        if (calendarChooserWanted && !work.busy && calendarDialog == null && work.calendars != null) {
+            calendarChooserWanted = false
+            chooseCalendar()
+        }
+    }
+
+    private fun chooseCalendar() {
+        val repository = CalendarRepository(this)
+        if (!repository.canRead()) {
+            val permissions = getSharedPreferences("permission_state", MODE_PRIVATE)
+            if (permissions.getBoolean("calendar_read_requested", false) &&
+                !shouldShowRequestPermissionRationale(Manifest.permission.READ_CALENDAR)) {
+                try {
+                    startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", packageName, null)))
+                } catch (error: android.content.ActivityNotFoundException) {
+                    Log.e("BareShellSettings", "Calendar permission settings unavailable", error)
+                    android.widget.Toast.makeText(this, R.string.calendar_permissions_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                } catch (error: SecurityException) {
+                    Log.e("BareShellSettings", "Calendar permission settings denied", error)
+                    android.widget.Toast.makeText(this, R.string.calendar_permissions_unavailable, android.widget.Toast.LENGTH_LONG).show()
+                }
+            } else {
+                calendarChooserWanted = true
+                requestPermissions(arrayOf(Manifest.permission.READ_CALENDAR), CALENDAR_READ_REQUEST)
+            }
+            return
+        }
+        val result = work.calendars
+        if (result !is CalendarRead.Loaded) {
+            android.widget.Toast.makeText(this, R.string.calendar_load_failed, android.widget.Toast.LENGTH_LONG).show()
+            work.loadCalendars()
+            return
+        }
+        val sources = result.value
+        if (sources.isEmpty() && work.settings.eventCalendars.isNullOrEmpty()) {
+            android.widget.Toast.makeText(this, R.string.calendar_no_sources, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        val identities = sources.map { it.identity } + work.settings.eventCalendars.orEmpty().filter { selected ->
+            sources.none { it.identity == selected }
+        }
+        val selected = selectedCalendars(sources, work.settings).map { it.identity }.toMutableSet().apply {
+            addAll(work.settings.eventCalendars.orEmpty())
+        }
+        val labels = identities.map { identity ->
+            sources.firstOrNull { it.identity == identity }?.let { calendarLabel(it, sources) }
+                ?: getString(R.string.calendar_missing_choice, identity.account)
+        }
+        calendarDialog = AlertDialog.Builder(this).setTitle(R.string.calendar_choose_source)
+            .setMultiChoiceItems(labels.toTypedArray(), identities.map { it in selected }.toBooleanArray()) { _, which, checked ->
+                if (checked) selected.add(identities[which]) else selected.remove(identities[which])
+            }.setPositiveButton(R.string.task_save) { _, _ ->
+                if (!work.busy) {
+                    val next = identities.filter { it in selected }
+                    work.save(work.settings.copy(eventCalendars = next,
+                        writeCalendar = work.settings.writeCalendar?.takeIf { it in next }))
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show().apply {
+                setOnDismissListener { calendarDialog = null }
+            }
+    }
+
+    private fun calendarLabel(source: DeviceCalendar, sources: List<DeviceCalendar>): String {
+        val name = if (sources.count { it.name == source.name } > 1) {
+            getString(R.string.calendar_source_choice, source.name, source.identity.account)
+        } else source.name
+        return if (source.writable) name else getString(R.string.calendar_readonly_label, name)
+    }
+
+    private fun chooseWriteCalendar() {
+        if (!CalendarRepository(this).canRead()) { chooseCalendar(); return }
+        val result = work.calendars
+        if (result !is CalendarRead.Loaded) {
+            android.widget.Toast.makeText(this, R.string.calendar_load_failed, android.widget.Toast.LENGTH_LONG).show()
+            work.loadCalendars()
+            return
+        }
+        val sources = selectedCalendars(result.value, work.settings).filter { it.writable }
+        if (sources.isEmpty()) {
+            android.widget.Toast.makeText(this, R.string.calendar_no_writable, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        AlertDialog.Builder(this).setTitle(R.string.calendar_choose_write)
+            .setSingleChoiceItems(sources.map { calendarLabel(it, sources) }.toTypedArray(),
+                sources.indexOfFirst { it.identity == defaultWriteCalendar(sources, work.settings)?.identity }) { dialog, which ->
+                if (!work.busy) {
+                    work.save(work.settings.copy(writeCalendar = sources[which].identity))
+                    dialog.dismiss()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == CALENDAR_READ_REQUEST) {
+            if (grantResults.isNotEmpty()) getSharedPreferences("permission_state", MODE_PRIVATE).edit()
+                .putBoolean("calendar_read_requested", true).apply()
+            calendarChooserWanted = CalendarRepository(this).canRead()
+            work.loadCalendars()
+        }
+    }
+
+    private fun chooseDateSystem() {
+        val locale = ULocale.forLocale(resources.configuration.locales[0])
+        val choices = listOf("device") + CalendarDates.available(locale)
+        val labels = choices.map { choice ->
+            val dates = CalendarDates(this, choice)
+            val name = if (choice == "device") getString(R.string.calendar_device_system, dates.name) else dates.name
+            "$name\n${dates.format(java.time.LocalDate.now())}"
+        }
+        AlertDialog.Builder(this).setTitle(R.string.calendar_choose_system)
+            .setSingleChoiceItems(labels.toTypedArray(), choices.indexOf(work.settings.dateSystem)) { dialog, which ->
+                if (!work.busy) {
+                    work.save(work.settings.copy(dateSystem = choices[which]))
+                    dialog.dismiss()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun dateFormatLabel(format: CalendarDateFormat): String = format.pattern ?: getString(when (format) {
+        CalendarDateFormat.SHORT -> R.string.calendar_format_short
+        CalendarDateFormat.MEDIUM -> R.string.calendar_format_medium
+        CalendarDateFormat.LONG -> R.string.calendar_format_long
+        else -> error("Expected localized date format")
+    })
+
+    private fun chooseDateFormat() {
+        val dates = CalendarDates(this, work.settings.dateSystem)
+        val options = CalendarDateFormat.entries
+        val labels = options.map { format ->
+            val label = dateFormatLabel(format)
+            if (dates.supported) "$label\n${dates.heading(java.time.LocalDate.now(), work.settings.copy(dateFormat = format))}" else label
+        }
+        AlertDialog.Builder(this).setTitle(R.string.calendar_choose_format)
+            .setSingleChoiceItems(labels.toTypedArray(), options.indexOf(work.settings.dateFormat)) { dialog, which ->
+                if (!work.busy) {
+                    work.save(work.settings.copy(dateFormat = options[which]))
+                    dialog.dismiss()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
+    }
+
+    private fun weekdayLabel(option: CalendarWeekday): Int =
+        if (option == CalendarWeekday.FULL) R.string.calendar_weekday_full else R.string.calendar_weekday_short
+
+    private fun chooseWeekday() {
+        val options = CalendarWeekday.entries
+        AlertDialog.Builder(this).setTitle(R.string.calendar_choose_weekday)
+            .setSingleChoiceItems(options.map { getString(weekdayLabel(it)) }.toTypedArray(),
+                options.indexOf(work.settings.weekday)) { dialog, which ->
+                if (!work.busy) {
+                    work.save(work.settings.copy(weekday = options[which]))
+                    dialog.dismiss()
+                }
+            }.setNegativeButton(android.R.string.cancel, null).show()
     }
 
     @Suppress("DEPRECATION")
@@ -295,5 +496,6 @@ class SettingsActivity : Activity() {
     companion object {
         const val RESULT_RESET = RESULT_FIRST_USER
         private const val DEFAULT_HOME_REQUEST = 1
+        private const val CALENDAR_READ_REQUEST = 2
     }
 }

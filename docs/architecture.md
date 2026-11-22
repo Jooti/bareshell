@@ -25,6 +25,7 @@ JVM tests mirror that package in
 | `AppRepository`, `AppRankingStore`, ranking/frequency models | Eligible apps, additive public usage points, and private package adjustments. |
 | `ContactRepository`, catalog/actions/history models | Permission-aware contacts, validated handoffs, local interaction scoring. |
 | `TasksPage`, `LauncherTask`, `TaskStore` | Compact task details/actions, separate drafts, pure transition rules, revision-checked SQLite. |
+| `CalendarPage`, `CalendarRepository`, `CalendarModel`, `CalendarDates` | Native agenda/editor, permission-aware provider instances and writes, pure local-day grouping, ICU date display/input. |
 | `PageCache`, `PageCacheStore` | Cache keys, invalidation, and private app/contact snapshots. |
 | `SettingsActivity`, `SettingsStore`, `LauncherSettings` | Retained settings work, durable preferences, separate theme/font controls. |
 | `LauncherAppearance`, `AppearancePalette`, `TextViews` | Native themes, previews, palette resolution, and shared text/touch styling. |
@@ -60,6 +61,27 @@ edits require Save or Discard and retain navigation protection.
 Settings retains application-context work across recreation. A successful
 durable save updates the UI and broadcasts personalization changes within the
 package. Failed writes keep the previous appearance and report failure.
+
+Calendar provider work shares a serial application-context worker. Page
+generations discard obsolete results. Provider observation is foreground-only;
+resume, provider changes, local midnight, and clock/zone changes refresh the
+agenda. Instances expand recurrence; date-only all-day boundaries use UTC,
+while timed events group in the device zone. ICU calendar choice changes only
+date presentation/input, not absolute event instants.
+
+Calendar selection stores a list of provider/account identities and a separate
+write default. Legacy single-calendar preferences migrate to that one-item list
+and write default without changing the selected account. Instances queries merge
+selected calendars before day grouping or the seven-section limit. Heading format
+and weekday style are independent settings; editor dates retain full context.
+
+Calendar drafts are separate from fresh event details and survive activity
+state restoration. Ordinary writes revalidate the event/calendar and use
+conditional updates against editable baseline fields. Pending write IDs retain
+bounded in-memory outcomes across recreation, preventing automatic replay;
+lost/unverified outcomes require explicit user recovery rather than duplicate
+inserts. Calendar contents have no persisted launcher cache. Permission
+revocation clears rows/drafts; recurring events use the external editor.
 
 Fresh installations atomically store the canonical default configuration and a
 pending-introduction flag on the catalog worker. Completed existing layouts
@@ -99,7 +121,10 @@ Home selection inside the wizard is not Android's default-Home choice.
 for older/unsupported devices. Android owns the selection and cancellation.
 The manifest exposes only the launcher Activity; Settings remains private.
 
-The six page identifiers, additive gesture identifiers, task schema, date-only
+The seven page identifiers, additive gesture identifiers, task schema, date-only
 grouping, immutable original dates, and revision semantics are intentional data
 contracts. Keep them stable unless a change explicitly includes migration.
 BareShell's package rename is a separate installation, not such a migration.
+Calendar is appended without renaming existing identifiers. Version-1 layouts
+retain the original five-page universe; existing version-2 layouts never gain
+new bindings automatically. Only fresh defaults assign Calendar to Up.

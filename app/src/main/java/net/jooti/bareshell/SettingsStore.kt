@@ -19,6 +19,13 @@ internal class SettingsStore(context: Context) {
             .putInt("close_contacts_count", settings.closeContactsCount)
             .putString("appearance_theme", settings.appearanceTheme.name)
             .putString("appearance_font", settings.appearanceFont.name)
+        settings.calendarValues().forEach { (key, value) ->
+            when (value) {
+                is String -> editor.putString(key, value)
+                is Int -> editor.putInt(key, value)
+                is Long -> editor.putLong(key, value)
+            }
+        }
         val saved = try {
             editor.commit()
         } catch (error: SecurityException) {

@@ -91,6 +91,8 @@ class MainActivity : Activity() {
     private var pages: LauncherPages? = null
     private var tasksPage: TasksPage? = null
     private var taskUiState: Bundle? = null
+    private var calendarPage: CalendarPage? = null
+    private var calendarUiState: Bundle? = null
     private val searchWork = Runnable { filterSearch() }
     private val permissionState by lazy { getSharedPreferences("permission_state", MODE_PRIVATE) }
 
@@ -162,6 +164,7 @@ class MainActivity : Activity() {
         root.requestApplyInsets()
         searchQuery = savedInstanceState?.getString("query").orEmpty()
         taskUiState = savedInstanceState?.getBundle("tasks_state")
+        calendarUiState = savedInstanceState?.getBundle("calendar_state")
         when (val saved = store.load(gestures.available)) {
             is ConfigurationRead.Ready -> {
                 configuration = saved.configuration
@@ -229,6 +232,7 @@ class MainActivity : Activity() {
             gestures.resume()
         }
         if (configuration != null) refreshPage()
+        calendarPage?.setForeground(true)
         offerDefaultHome()
         showSearchKeyboard()
     }
@@ -257,6 +261,7 @@ class MainActivity : Activity() {
 
     override fun onPause() {
         resumed = false
+        calendarPage?.setForeground(false)
         handler.removeCallbacks(midnight)
         if (refreshEventsRegistered) { unregisterReceiver(refreshEvents); refreshEventsRegistered = false }
         wizard?.setForeground(false)
@@ -270,6 +275,7 @@ class MainActivity : Activity() {
         wizard?.dispose()
         pages?.dispose()
         tasksPage?.dispose()
+        calendarPage?.dispose()
         executor.submit { history.close(); appRanking.close() }
         super.onDestroy()
     }
@@ -295,6 +301,9 @@ class MainActivity : Activity() {
         pages?.saveState(outState)
         tasksPage?.let { page -> taskUiState = Bundle().also(page::saveState) }
         outState.putBundle("tasks_state", taskUiState)
+        calendarPage?.let { page -> calendarUiState = Bundle().also(page::saveState) }
+        if (checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) calendarUiState = null
+        outState.putBundle("calendar_state", calendarUiState)
         progress.home?.let { outState.putString("wizard_home", it.name) }
         outState.putStringArrayList("wizard_destinations", ArrayList(progress.destinations.map { it.name }))
         outState.putBoolean("wizard_assigning", progress.assigning)
@@ -313,6 +322,13 @@ class MainActivity : Activity() {
         if (requestCode == CONTACTS_REQUEST) {
             if (grantResults.isNotEmpty()) permissionState.edit().putBoolean("contacts_requested", true).apply()
             if (configuration != null && resumed) refreshPage()
+        }
+        if (requestCode == CALENDAR_READ_REQUEST || requestCode == CALENDAR_WRITE_REQUEST) {
+            if (grantResults.isNotEmpty()) permissionState.edit().putBoolean(
+                if (requestCode == CALENDAR_READ_REQUEST) "calendar_read_requested" else "calendar_write_requested", true,
+            ).apply()
+            if (configuration != null && resumed) refreshPage()
+            calendarPage?.setForeground(resumed)
         }
     }
 
@@ -352,6 +368,7 @@ class MainActivity : Activity() {
             pages?.dispose()
             pages = null
             rememberTasks()
+            rememberCalendar()
             wizard?.dispose()
             wizard = null
             configuration = null
@@ -371,15 +388,19 @@ class MainActivity : Activity() {
         private fun openLauncherSettings() {
             if (welcome != null || configuration == null || currentPage != configuration?.home) return
             val page = tasksPage
-            if (page != null) page.requestLeave { openLauncherSettingsNow() } else openLauncherSettingsNow()
+            val calendar = calendarPage
+            if (page != null) page.requestLeave { openLauncherSettingsNow() }
+            else if (calendar != null) calendar.requestLeave { openLauncherSettingsNow() }
+            else openLauncherSettingsNow()
         }
 
         @Suppress("DEPRECATION")
-        private fun openLauncherSettingsNow() {
+        private fun openLauncherSettingsNow(calendarSettings: Boolean = false) {
             hideKeyboard()
             closeContact()
             try {
-                startActivityForResult(Intent(this, SettingsActivity::class.java), SETTINGS_REQUEST)
+                startActivityForResult(Intent(this, SettingsActivity::class.java)
+                    .putExtra("calendar_settings", calendarSettings), SETTINGS_REQUEST)
             } catch (error: ActivityNotFoundException) {
                 Log.e(TAG, "Launcher settings are unavailable", error)
                 Toast.makeText(this, R.string.settings_open_failed, Toast.LENGTH_LONG).show()
@@ -485,7 +506,7 @@ class MainActivity : Activity() {
             host.getChildAt(index).importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
             host.getChildAt(index).visibility = View.INVISIBLE
         }
-        welcome = WelcomeOverlay(this, step, ::finishWelcome).also {
+        welcome = WelcomeOverlay(this, step, ::finishWelcome, requireNotNull(configuration)).also {
             host.addView(it.view, FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
             ))
@@ -595,7 +616,10 @@ class MainActivity : Activity() {
             return
         }
         val tasks = tasksPage
-        if (tasks != null) tasks.requestLeave { showPageNow(page) } else showPageNow(page)
+        val calendar = calendarPage
+        if (tasks != null) tasks.requestLeave { showPageNow(page) }
+        else if (calendar != null) calendar.requestLeave { showPageNow(page) }
+        else showPageNow(page)
     }
 
     private fun rememberTasks() {
@@ -603,7 +627,17 @@ class MainActivity : Activity() {
             taskUiState = Bundle().also(page::saveState)
             page.dispose()
         }
+
         tasksPage = null
+    }
+
+    private fun rememberCalendar() {
+        calendarPage?.let { page ->
+            calendarUiState = Bundle().also(page::saveState)
+            page.dispose()
+        }
+        calendarPage = null
+        if (checkSelfPermission(Manifest.permission.READ_CALENDAR) != PackageManager.PERMISSION_GRANTED) calendarUiState = null
     }
 
     private fun showPageNow(page: Page) {
@@ -613,8 +647,9 @@ class MainActivity : Activity() {
         pages?.dispose()
         pages = null
         rememberTasks()
+        rememberCalendar()
         menu = ContactMenu()
-        if (currentPage == Page.SEARCH || currentPage == Page.TASKS) hideKeyboard()
+        if (currentPage == Page.SEARCH || currentPage == Page.TASKS || currentPage == Page.CALENDAR) hideKeyboard()
         currentPage = page
         searchKeyboardPending = page == Page.SEARCH
         content = null
@@ -624,6 +659,16 @@ class MainActivity : Activity() {
             tasksPage = tasks
             host.removeAllViews()
             host.addView(tasks.view)
+            root.requestFocus()
+            return
+        }
+        if (page == Page.CALENDAR) {
+            val calendar = CalendarPage(this, { listSettings }, { allowCalendar(false) }, { allowCalendar(true) },
+                { openLauncherSettingsNow(true) }, calendarUiState)
+            calendarPage = calendar
+            host.removeAllViews()
+            host.addView(calendar.view)
+            calendar.setForeground(resumed)
             root.requestFocus()
             return
         }
@@ -652,6 +697,10 @@ class MainActivity : Activity() {
 
     private fun refreshPage() {
         if (configuration == null) return
+        if (currentPage == Page.CALENDAR) {
+            calendarPage?.refresh()
+            return
+        }
         if (currentPage == Page.TASKS) {
             tasksPage?.refresh()
             return
@@ -843,6 +892,7 @@ class MainActivity : Activity() {
             pages?.dispose()
             pages = null
             rememberTasks()
+            rememberCalendar()
             invalidSettings = true
             hideKeyboard()
         }
@@ -866,6 +916,8 @@ class MainActivity : Activity() {
         } else if (keyboardVisible()) {
             hideKeyboard()
         } else if (tasksPage?.back() == true) {
+            return
+        } else if (calendarPage?.back() == true) {
             return
         } else if (menu.expanded) {
             if (menu.expansion.otherNumbers) {
@@ -1220,6 +1272,15 @@ class MainActivity : Activity() {
         } else {
             requestPermissions(arrayOf(Manifest.permission.READ_CONTACTS), CONTACTS_REQUEST)
         }
+
+    }
+
+    private fun allowCalendar(write: Boolean) {
+        val permission = if (write) Manifest.permission.WRITE_CALENDAR else Manifest.permission.READ_CALENDAR
+        val key = if (write) "calendar_write_requested" else "calendar_read_requested"
+        if (permissionState.getBoolean(key, false) && !shouldShowRequestPermissionRationale(permission)) {
+            openSettings(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName")))
+        } else requestPermissions(arrayOf(permission), if (write) CALENDAR_WRITE_REQUEST else CALENDAR_READ_REQUEST)
     }
 
     private fun openUsageSettings() = openSettings(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS))
@@ -1262,5 +1323,7 @@ class MainActivity : Activity() {
         const val CONTACTS_REQUEST = 1
         const val SETTINGS_REQUEST = 2
         const val DEFAULT_HOME_REQUEST = 3
+        const val CALENDAR_READ_REQUEST = 4
+        const val CALENDAR_WRITE_REQUEST = 5
     }
 }

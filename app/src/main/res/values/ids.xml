@@ -1,5 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <item name="calendar_page" type="id" />
+    <item name="calendar_heading" type="id" />
+    <item name="calendar_add" type="id" />
+    <item name="calendar_row" type="id" />
+    <item name="calendar_action" type="id" />
+    <item name="calendar_title" type="id" />
+    <item name="calendar_note" type="id" />
+    <item name="calendar_location" type="id" />
+    <item name="calendar_save" type="id" />
+    <item name="calendar_date_choice" type="id" />
+    <item name="calendar_source_setting" type="id" />
+    <item name="calendar_write_setting" type="id" />
+    <item name="calendar_format_setting" type="id" />
+    <item name="calendar_weekday_setting" type="id" />
+    <item name="calendar_system_setting" type="id" />
     <item name="welcome_title" type="id" />
     <item name="welcome_text" type="id" />
     <item name="welcome_preview" type="id" />

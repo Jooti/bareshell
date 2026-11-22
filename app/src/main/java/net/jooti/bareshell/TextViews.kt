@@ -34,6 +34,7 @@ internal val Page.labelRes: Int
         Page.ALL_CONTACTS -> R.string.all_contacts
         Page.SEARCH -> R.string.search
         Page.TASKS -> R.string.tasks
+        Page.CALENDAR -> R.string.calendar
     }
 
 internal val Gesture.labelRes: Int
@@ -56,4 +57,5 @@ internal fun Context.pageDescription(page: Page, settings: LauncherSettings): St
     Page.ALL_CONTACTS -> getString(R.string.describe_all_contacts)
     Page.SEARCH -> getString(R.string.describe_search)
     Page.TASKS -> getString(R.string.describe_tasks)
+    Page.CALENDAR -> getString(R.string.describe_calendar)
 }

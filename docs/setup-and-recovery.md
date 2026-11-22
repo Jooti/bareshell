@@ -12,8 +12,9 @@ configuration wizard:
 | Swipe left | Close Contacts |
 | Swipe right | Tasks |
 | Swipe down | Search |
+| Swipe up | Calendar |
 
-Only these one-finger gestures are assigned. Swipe up, shake, and two-finger
+Only these one-finger gestures are assigned. Shake and two-finger
 gestures are unassigned; All Apps and All Contacts remain disabled until you
 configure them. Counts default to 10 with System colors and Monospace text.
 Existing completed layouts retain their Home and every shortcut.
@@ -21,12 +22,13 @@ Existing completed layouts retain their Home and every shortcut.
 A one-time introduction shows sample apps in the same layout as Top Apps.
 The small top overlay asks you to **swipe left** for sample people, then
 **swipe right** back to apps. Tapping the instruction also advances the step.
-A four-box map shows Search above Apps, with Tasks on the left and Contacts
-on the right; short captions show the actual swipe directions.
+A five-box map shows Search above Apps, Tasks on the left, Contacts on the right,
+and Calendar below; short captions show the actual swipe directions. An older
+installation with an unfinished introduction sees only its saved shortcuts.
 **Start** ends the introduction. Back revisits the previous step.
 Sample data is clearly labeled, never saved, and cannot launch apps, contact
 people, or create tasks.
-The tour requests no permissions; usage and contacts access can be enabled later.
+The tour requests no permissions; usage, contacts, and calendar access can be enabled later.
 Tasks and app search work without either permission.
 
 Rotation preserves the current step. An unfinished tour resumes after a cold
@@ -45,7 +47,7 @@ It starts with Home selection:
 > Choose your Home screen
 
 Choose **Top Apps**, **Close Contacts**, **All Apps**, **All Contacts**, **Search**,
-or **Tasks**.
+**Tasks**, or **Calendar**.
 Each option includes a short description. Home is what appears when you press
 Android Home; choosing it does not grant permissions or change Android's default
 launcher selection. Usage and contacts access can be enabled later.
@@ -73,7 +75,7 @@ Each destination needs a different gesture. Available
 gestures are left, right, up, and down with one finger, the same four directions
 with two fingers on multitouch devices, and shake when an accelerometer is
 available. Devices with only four single-finger swipes can enable up to four
-destinations; multitouch or shake support allows all five. Inline feedback names the existing destination if
+destinations; sufficient multitouch/shake gestures allow all six. Inline feedback names the existing destination if
 you reuse a gesture. The next step confirms your assignment, and a setup summary
 lists your chosen Home and shortcuts. Tips explain opposite-swipe/shake-again
 return navigation and that shortcuts open destinations from Home.
@@ -98,7 +100,7 @@ Cloud backup is disabled, and modern cloud/device-transfer rules exclude the
 saved preferences, local contact-score database, and task database from transfer.
 Invalid, incomplete, or unsupported gesture settings require setup again.
 Existing completed setups keep their Home and bindings when page labels change
-or Tasks is added. Use **Reset wizard** in Settings to enable Tasks; the update
+or Tasks/Calendar is added. Use **Reset wizard** in Settings to enable these pages; the update
 does not silently add or remap a shortcut.
 BareShell uses `net.jooti.bareshell` and installs separately from Mini Home.
 Its old `com.example.minihome` data, grants, and launcher selection are untouched.
@@ -119,6 +121,7 @@ and explains that BareShell gradually learns favorites.
 | All Contacts | System-starred contacts first, alphabetical within each group; tap for inline actions. |
 | Search | App/contact display-name matches as you type; apps first, contacts second. |
 | Tasks | Doing, Postponed, Finished, and Canceled tasks, with inline editing and actions. |
+| Calendar | Today plus future event days, with device-calendar events and a minimal editor. |
 
 Navigation swipes can start in **any blank area**, including below content,
 beside text, and in the empty space above or below a short list.
@@ -194,6 +197,18 @@ so slow swipes and pausing after moving still work.
 - **Top Apps** and **Close Contacts** have independent counts: **5, 10, 15, 20,
   30, or 50**, defaulting to 10. Counts are durable only after a successful save.
   Full lists and Search remain uncapped.
+- **Calendars** selects any number of visible device calendars. Tap **Save** to
+  apply the checkboxes; Cancel keeps the previous selection. With no saved
+  choice, a sole readable calendar is used automatically.
+- **New events** chooses a writable selected calendar. A sole writable selection
+  is automatic; otherwise choose the default. Existing events stay in their
+  original calendar. Removed explicit choices never silently switch accounts.
+- **Date system** follows the device locale by default and can be overridden.
+- **Date format** offers MM/dd and dd/MM without a year; MM/dd/yyyy, dd/MM/yyyy,
+  yyyy-MM-dd; and localized Short, Medium, and Long formats.
+- **Weekday** chooses Abbreviated or Full. Agenda headings default to
+  **Sun 11/22** (abbreviated weekday plus MM/dd). Editor/picker dates keep the
+  year for clarity.
 - **Appearance** offers **System** (default, follows the device), **Dark**,
   **Light**, **Terminal Green** (green on near-black), and **Neutral Gray**
   (`#767676`, approximately 18% linear luminance, with near-black text). Each
@@ -215,6 +230,42 @@ so slow swipes and pausing after moving still work.
 Settings uses the selected appearance and supports scrolling and rotation.
 The installed version name and build number appear at the end of Settings.
 Storage failures show an error instead of claiming the change was saved.
+
+### Calendar
+
+Today is always the first section, even empty. Future empty days are skipped.
+The agenda includes events through today +14 days inclusive, with at most seven
+day sections total and no event-count limit within a day. Ongoing and multi-day
+events appear on the days they overlap; all-day events keep their date-only
+semantics across time zones. Calendar refreshes on return, device-calendar
+changes, and foreground midnight without a background service.
+
+Tap **Allow calendar access** to read events, or choose calendars in
+Settings. Denial leaves the rest of the launcher usable; permanent denial opens
+Android's app permission settings. Tap **Add event** or **Edit** to enable
+calendar writing separately. Read-only calendars remain viewable.
+
+Event names expand to notes/location and Edit. The internal editor has a title,
+optional notes/location, start/end dates and times, and all-day mode. All-day
+end dates mean the last included day. Date selection uses the chosen calendar's
+months/days; time selection follows the device's 12/24-hour preference.
+Gregorian, Persian/Jalali, Hijri variants, Chinese, Hebrew, Buddhist, Japanese,
+and other available Android ICU systems can be selected. ICU-computed Hijri
+dates do not guarantee agreement with locally observed religious dates.
+
+Use **Save** or **Discard edits** explicitly. Navigation protects unsaved work;
+permission revocation clears calendar content and drafts. Invalid times during
+clock changes are rejected; repeated times require choosing an offset. Existing
+event time zones are preserved. An event changed elsewhere must be reopened
+before saving stale edits. An uncertain write must be checked in the calendar
+app before creating another event; retry is not automatic.
+
+Recurring events and recurrence exceptions edit in an installed calendar app.
+There is no recurrence, reminder, attendee, or deletion editor. Existing
+reminders and other metadata are preserved by ordinary edits. New events outside
+the agenda window are still saved, with an explanatory confirmation.
+Only events exposed through Android's Calendar Provider are available; private
+calendars inside other apps are not imported.
 
 ### Tasks
 

@@ -16,14 +16,14 @@ class LauncherConfigurationTest {
     private fun legacy(home: Page): Map<String, Any> = buildMap {
         put("version", 1)
         put("home", home.name)
-        home.remaining().filter { it != Page.TASKS }.zip(Gesture.entries.take(4)).forEach { (page, gesture) ->
+        home.remaining().filter { it != Page.TASKS && it != Page.CALENDAR }.zip(Gesture.entries.take(4)).forEach { (page, gesture) ->
             put("gesture.${page.name}", gesture.name)
         }
     }
 
     @Test fun allHomesAndDestinationCountsRoundTrip() {
         Page.entries.forEach { home ->
-            (0..5).forEach { count ->
+            (0..6).forEach { count ->
                 val config = configuration(home, count)
                 assertEquals(ConfigurationRead.Ready(config), readConfiguration(config.storedValues()))
                 assertTrue(config.enables(home))
@@ -33,12 +33,13 @@ class LauncherConfigurationTest {
     }
 
     @Test fun legacySetupsKeepHomeAndAllOldBindingsWithoutEnablingTasks() {
-        (Page.entries - Page.TASKS).forEach { home ->
+        (Page.entries - setOf(Page.TASKS, Page.CALENDAR)).forEach { home ->
             val values = legacy(home)
             val result = readConfiguration(values, swipes) as ConfigurationRead.Ready
             assertEquals(home, result.configuration.home)
-            assertEquals(home.remaining().filter { it != Page.TASKS }, result.configuration.bindings.keys.toList())
+            assertEquals(home.remaining().filter { it != Page.TASKS && it != Page.CALENDAR }, result.configuration.bindings.keys.toList())
             assertFalse(result.configuration.enables(Page.TASKS))
+            assertFalse(result.configuration.enables(Page.CALENDAR))
             assertEquals(ConfigurationRead.Ready(result.configuration), readConfiguration(result.configuration.storedValues()))
             result.configuration.bindings.forEach { (page, gesture) ->
                 assertEquals(values["gesture.${page.name}"], gesture.name)
@@ -48,6 +49,7 @@ class LauncherConfigurationTest {
 
     @Test fun legacyTasksAndIncompleteBindingsAreRejected() {
         assertEquals(ConfigurationRead.Invalid, readConfiguration(legacy(Page.FAV_APPS) + ("home" to "TASKS")))
+        assertEquals(ConfigurationRead.Invalid, readConfiguration(legacy(Page.FAV_APPS) + ("home" to "CALENDAR")))
         assertEquals(ConfigurationRead.Invalid, readConfiguration(legacy(Page.FAV_APPS) - "gesture.SEARCH"))
         assertEquals(ConfigurationRead.Invalid, readConfiguration(legacy(Page.FAV_APPS) + ("gesture.TASKS" to "SHAKE")))
     }
@@ -65,7 +67,7 @@ class LauncherConfigurationTest {
     @Test fun freshInstallDefaultsHaveExactlyTheRequestedHomeAndShortcuts() {
         assertEquals(Page.FAV_APPS, defaultConfiguration.home)
         assertEquals(mapOf(
-            Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN,
+            Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN, Page.CALENDAR to Gesture.UP,
         ), defaultConfiguration.bindings)
         assertFalse(defaultConfiguration.enables(Page.ALL_APPS))
         assertFalse(defaultConfiguration.enables(Page.ALL_CONTACTS))
@@ -104,11 +106,21 @@ class LauncherConfigurationTest {
         Page.entries.forEach { home ->
             assertEquals(ConfigurationRead.Ready(configuration(home)), readConfiguration(configuration(home).storedValues()))
         }
-        (Page.entries - Page.TASKS).forEach { home ->
+        (Page.entries - setOf(Page.TASKS, Page.CALENDAR)).forEach { home ->
             val existing = readConfiguration(legacy(home)) as ConfigurationRead.Ready
             assertFalse(existing.introductionPending)
             assertFalse(existing.defaultHomePending)
         }
+
+    }
+
+    @Test fun preCalendarVersionTwoLayoutsKeepEveryBindingAndPendingIntroduction() {
+        val old = LauncherConfiguration(Page.FAV_APPS,
+            mapOf(Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN))
+        assertEquals(ConfigurationRead.Ready(old, introductionPending = true),
+            readConfiguration(old.storedValues() + ("introduction_pending" to true)))
+        assertFalse(old.enables(Page.CALENDAR))
+        assertEquals(Page.FAV_APPS, old.navigate(Page.FAV_APPS, Gesture.UP))
     }
 
     @Test fun malformedSettingsNeverSilentlyDefault() {

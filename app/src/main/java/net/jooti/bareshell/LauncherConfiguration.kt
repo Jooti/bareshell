@@ -1,7 +1,7 @@
 package net.jooti.bareshell
 
 internal enum class Page {
-    FAV_APPS, FAV_CONTACTS, ALL_APPS, ALL_CONTACTS, SEARCH, TASKS;
+    FAV_APPS, FAV_CONTACTS, ALL_APPS, ALL_CONTACTS, SEARCH, TASKS, CALENDAR;
 
     fun remaining(): List<Page> = entries.filter { it != this }
 }
@@ -57,7 +57,7 @@ internal sealed interface ConfigurationRead {
 
 internal val defaultConfiguration = LauncherConfiguration(
     Page.FAV_APPS,
-    mapOf(Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN),
+    mapOf(Page.FAV_CONTACTS to Gesture.LEFT, Page.TASKS to Gesture.RIGHT, Page.SEARCH to Gesture.DOWN, Page.CALENDAR to Gesture.UP),
 )
 
 internal fun readConfiguration(
@@ -78,8 +78,8 @@ internal fun readConfiguration(
     val home = Page.entries.firstOrNull { it.name == values["home"] }
         ?: return ConfigurationRead.Invalid
     val destinations = if (version == 1) {
-        if (home == Page.TASKS) return ConfigurationRead.Invalid
-        home.remaining().filter { it != Page.TASKS }
+        if (home == Page.TASKS || home == Page.CALENDAR) return ConfigurationRead.Invalid
+        home.remaining().filter { it != Page.TASKS && it != Page.CALENDAR }
     } else {
         val names = values["destinations"] as? String ?: return ConfigurationRead.Invalid
         val parsed = if (names.isEmpty()) emptyList() else names.split(",").map { name ->

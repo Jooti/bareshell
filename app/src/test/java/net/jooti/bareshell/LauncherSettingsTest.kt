@@ -4,6 +4,48 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class LauncherSettingsTest {
+    @Test fun calendarPreferencesAreIndependentAndOldSettingsRemainCompatible() {
+        val source = CalendarIdentity(12, "local", "LOCAL")
+        assertEquals(SettingsRead.Ready(LauncherSettings(eventCalendars = listOf(source), dateSystem = "persian", writeCalendar = source)),
+            readSettings(mapOf("calendar_id" to 12L, "calendar_account" to "local",
+                "calendar_account_type" to "LOCAL", "date_system" to "persian")))
+        assertEquals(SettingsRead.Ready(LauncherSettings(dateSystem = "chinese")),
+            readSettings(mapOf("date_system" to "chinese")))
+        assertEquals(SettingsRead.Ready(LauncherSettings()), readSettings(emptyMap<String, Any>()))
+    }
+
+    @Test fun incompleteCalendarIdentityAndMalformedDateChoicesAreRejected() {
+        listOf(
+            mapOf("calendar_id" to 1L), mapOf("calendar_id" to -1L, "calendar_account" to "", "calendar_account_type" to ""),
+            mapOf("calendar_id" to 1, "calendar_account" to "", "calendar_account_type" to ""),
+            mapOf("date_system" to ""), mapOf("date_system" to 1), mapOf("date_system" to "Gregorian"),
+        ).forEach { assertEquals(SettingsRead.Invalid, readSettings(it)) }
+    }
+
+    @Test fun multipleCalendarsAndDatePreferencesRoundTripIndependently() {
+        val sources = listOf(CalendarIdentity(1, "local", "LOCAL"), CalendarIdentity(2, "other", "LOCAL"))
+        CalendarDateFormat.entries.forEach { format ->
+            CalendarWeekday.entries.forEach { weekday ->
+                val settings = LauncherSettings(eventCalendars = sources, writeCalendar = sources[1],
+                    dateSystem = "persian", dateFormat = format, weekday = weekday)
+                assertEquals(SettingsRead.Ready(settings), readSettings(settings.calendarValues()))
+            }
+        }
+        val empty = LauncherSettings(eventCalendars = emptyList())
+        assertEquals(SettingsRead.Ready(empty), readSettings(empty.calendarValues()))
+        assertEquals(SettingsRead.Ready(LauncherSettings()), readSettings(LauncherSettings().calendarValues()))
+    }
+
+    @Test fun invalidMultiCalendarAndFormatPreferencesAreRejected() {
+        val sources = listOf(CalendarIdentity(1, "local", "LOCAL"), CalendarIdentity(2, "other", "LOCAL"))
+        val values = LauncherSettings(eventCalendars = sources, writeCalendar = sources[1]).calendarValues()
+        listOf(
+            values - "calendar.1.account", values + ("calendar_count" to -1),
+            values + ("calendar_count" to "2"), values + ("calendar.1.id" to 1L),
+            values + ("write_calendar.id" to 9L), values - "write_calendar.type",
+            values + ("date_format" to "OTHER"), values + ("calendar_weekday" to 1),
+        ).forEach { assertEquals(SettingsRead.Invalid, readSettings(it)) }
+    }
     @Test
     fun appearanceDefaultsAndEveryStoredChoiceAreReadWithoutChangingCounts() {
         assertEquals(AppearanceTheme.SYSTEM, LauncherSettings().appearanceTheme)

@@ -23,6 +23,36 @@ First-use configuration checks:
 .\gradlew.bat :app:testDebugUnitTest --tests net.jooti.bareshell.LauncherConfigurationTest --tests net.jooti.bareshell.WelcomeStepTest
 ```
 
+Focused calendar/compatibility checks:
+
+```powershell
+.\gradlew.bat :app:testDebugUnitTest --tests net.jooti.bareshell.CalendarModelTest --tests net.jooti.bareshell.LauncherConfigurationTest --tests net.jooti.bareshell.LauncherSettingsTest
+```
+
+The native runner also checks ICU calendar coverage, Persian new year, Chinese
+leap months, continuous day choices, calendar month navigation, and saved-layout
+welcome maps. Optional provider/editor checks create a uniquely named local
+calendar fixture and delete only that fixture afterward. These checks require
+calendar grants and must run only on a disposable isolated emulator:
+
+```powershell
+& $adb -s <isolated-device> shell pm grant net.jooti.bareshell android.permission.READ_CALENDAR
+& $adb -s <isolated-device> shell pm grant net.jooti.bareshell android.permission.WRITE_CALENDAR
+& $adb -s <isolated-device> shell am instrument -w -e calendar true net.jooti.bareshell.test/net.jooti.bareshell.FirstUseInstrumentation
+```
+
+Require instrumentation result code -1, not merely a zero ADB exit code.
+Provider checks include ordinary create/edit, stale-edit rejection, read-only
+calendars, all-day and recurring occurrences, actual internal-editor saving,
+retained draft state, multi-calendar merging, and saving to the chosen write
+default. Format checks verify exact abbreviated/full weekday output, year-free
+MM/dd and dd/MM, regular date orders, and Persian calendar conversion.
+Recheck permission denial/permanent denial/revocation,
+provider errors, removed/duplicate-named calendars, recurrence edit handoff,
+uncertain saves, large fonts/RTL/themes, day boundaries, and changing the
+date system/locale while editing. API 26 and 36 validation remain required;
+a newer isolated emulator is additional coverage only.
+
 The dependency-free native instrumentation runner tests real preferences,
 first-use eligibility, durable completion/default-Home handoff, explicit reset,
 existing configuration preservation, invalid layouts, and failed-commit memory
