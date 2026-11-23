@@ -249,6 +249,11 @@ Event names expand to notes/location and Edit. The internal editor has a title,
 optional notes/location, start/end dates and times, and all-day mode. All-day
 end dates mean the last included day. Date selection uses the chosen calendar's
 months/days; time selection follows the device's 12/24-hour preference.
+For new events, choosing a start date also sets the end to that day; choosing a
+start time sets the end one hour later, rolling into the next day when needed.
+Editing existing starts preserves a valid end. Invalid end selections move
+forward automatically: same-day for all-day events, one hour after start for
+timed events. All-day toggles also keep the range ordered.
 Gregorian, Persian/Jalali, Hijri variants, Chinese, Hebrew, Buddhist, Japanese,
 and other available Android ICU systems can be selected. ICU-computed Hijri
 dates do not guarantee agreement with locally observed religious dates.

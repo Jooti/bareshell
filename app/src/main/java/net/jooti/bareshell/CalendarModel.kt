@@ -58,6 +58,40 @@ internal fun calendarLocalTime(date: LocalDate, hour: Int, minute: Int, zone: Zo
     return zone.rules.getValidOffsets(local).map { local.toInstant(it) }
 }
 
+internal data class CalendarEditorRange(
+    val start: LocalDateTime,
+    val end: LocalDateTime,
+    val allDay: Boolean,
+    val startZone: ZoneId,
+    val endZone: ZoneId,
+) {
+    fun startingOn(date: LocalDate, creating: Boolean): CalendarEditorRange =
+        copy(start = date.atTime(start.toLocalTime()),
+            end = if (creating) date.atTime(end.toLocalTime()) else end).ordered()
+
+    fun startingAt(minute: Int, creating: Boolean): CalendarEditorRange {
+        val next = copy(start = start.toLocalDate().atTime(minute / 60, minute % 60))
+        return if (creating) next.withDefaultEnd() else next.ordered()
+    }
+
+    fun endingOn(date: LocalDate): CalendarEditorRange =
+        copy(end = date.atTime(end.toLocalTime())).ordered()
+
+    fun endingAt(minute: Int): CalendarEditorRange =
+        copy(end = end.toLocalDate().atTime(minute / 60, minute % 60)).ordered()
+
+    fun ordered(): CalendarEditorRange = if (allDay) {
+        if (end.toLocalDate() < start.toLocalDate()) copy(end = start.toLocalDate().atTime(end.toLocalTime())) else this
+    } else {
+        val startInstant = start.atZone(startZone).toInstant()
+        val endInstant = end.atZone(endZone).toInstant()
+        if (endInstant <= startInstant) withDefaultEnd() else this
+    }
+
+    private fun withDefaultEnd(): CalendarEditorRange =
+        copy(end = start.atZone(startZone).plusHours(1).withZoneSameInstant(endZone).toLocalDateTime())
+}
+
 internal fun validCalendarEvent(event: CalendarEvent): Boolean =
     event.title.isNotBlank() && event.end > event.start &&
         (!event.allDay || (event.start % 86_400_000L == 0L && event.end % 86_400_000L == 0L))

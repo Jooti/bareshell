@@ -426,15 +426,22 @@ internal class CalendarPage(
                 activity.getString(if (allDay) R.string.calendar_yes else R.string.calendar_no)), action = {
                 allDay = !allDay
                 if (!allDay) { startZone = ZoneId.systemDefault(); endZone = startZone }
+                applyRange(editorRange().ordered())
                 makeEditor(); render()
             }))
             val dates = CalendarDates(activity, settings().dateSystem)
             if (dates.supported) {
                 addView(label(activity.getString(R.string.calendar_start_date, dates.format(startDate)), action = {
-                    pickDate(startDate) { startDate = it; makeEditor(); render() }
+                    pickDate(startDate) {
+                        applyRange(editorRange().startingOn(it, original == null))
+                        makeEditor(); render()
+                    }
                 }))
                 addView(label(activity.getString(R.string.calendar_end_date, dates.format(endDate)), action = {
-                    pickDate(endDate) { endDate = it; makeEditor(); render() }
+                    pickDate(endDate) {
+                        applyRange(editorRange().endingOn(it))
+                        makeEditor(); render()
+                    }
                 }))
             }
             if (!allDay) {
@@ -445,10 +452,16 @@ internal class CalendarPage(
                         .format(java.time.format.DateTimeFormatter.ofPattern(pattern, locale))
                 }
                 addView(label(activity.getString(R.string.calendar_start_time, minuteText(startMinute)), action = {
-                    pickTime(startMinute) { startMinute = it; makeEditor(); render() }
+                    pickTime(startMinute) {
+                        applyRange(editorRange().startingAt(it, original == null))
+                        makeEditor(); render()
+                    }
                 }))
                 addView(label(activity.getString(R.string.calendar_end_time, minuteText(endMinute)), action = {
-                    pickTime(endMinute) { endMinute = it; makeEditor(); render() }
+                    pickTime(endMinute) {
+                        applyRange(editorRange().endingAt(it))
+                        makeEditor(); render()
+                    }
                 }))
                 if (startZone != ZoneId.systemDefault() || endZone != startZone) {
                     addView(label(activity.getString(R.string.calendar_zone, startZone.id, endZone.id)))
@@ -457,6 +470,22 @@ internal class CalendarPage(
             addView(label(activity.getString(R.string.task_save), R.id.calendar_save, action = ::save).apply { isEnabled = pending == null })
             addView(label(activity.getString(R.string.task_discard), action = { requestLeave { closeEditor(); render() } }))
         }
+    }
+
+    private fun editorRange() = CalendarEditorRange(
+        startDate.atTime(startMinute / 60, startMinute % 60),
+        endDate.atTime(endMinute / 60, endMinute % 60), allDay, startZone, endZone,
+    )
+
+    private fun applyRange(range: CalendarEditorRange) {
+        val adjusted = range.end.toLocalDate() != endDate ||
+            range.end.hour * 60 + range.end.minute != endMinute
+        startDate = range.start.toLocalDate()
+        startMinute = range.start.hour * 60 + range.start.minute
+        endDate = range.end.toLocalDate()
+        endMinute = range.end.hour * 60 + range.end.minute
+        if (adjusted) Toast.makeText(activity, R.string.calendar_end_adjusted, Toast.LENGTH_SHORT).show()
+        writeStatus = 0
     }
 
     private fun input(hint: Int, id: Int, value: String, multiline: Boolean = false, changed: (String) -> Unit): EditText =
@@ -529,7 +558,15 @@ internal class CalendarPage(
             submit(source, startDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli(),
                 endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli())
         } else resolveTime(startDate, startMinute, startZone, original?.start) { start ->
-            resolveTime(endDate, endMinute, endZone, original?.end) { end -> submit(source, start, end) }
+            resolveTime(endDate, endMinute, endZone, original?.end) { end ->
+                val orderedEnd = if (end <= start) start + 3_600_000 else end
+                if (orderedEnd != end) {
+                    val adjusted = Instant.ofEpochMilli(orderedEnd).atZone(endZone)
+                    applyRange(editorRange().copy(end = adjusted.toLocalDateTime()))
+                    makeEditor(); render()
+                }
+                submit(source, start, orderedEnd)
+            }
         }
     }
 

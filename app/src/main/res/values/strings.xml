@@ -56,6 +56,7 @@
     <string name="calendar_previous_month">Previous month</string>
     <string name="calendar_next_month">Next month</string>
     <string name="calendar_invalid_range">End must be after start. Check both dates and times.</string>
+    <string name="calendar_end_adjusted">End adjusted.</string>
     <string name="calendar_invalid_time">This time does not exist because the clocks change. Choose another time.</string>
     <string name="calendar_ambiguous_time">Clocks repeat this time. Choose an offset.</string>
     <string name="calendar_discard_question">Discard unsaved event edits?</string>

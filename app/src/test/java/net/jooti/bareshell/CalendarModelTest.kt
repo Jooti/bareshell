@@ -73,6 +73,69 @@ class CalendarModelTest {
         assertEquals(1, calendarLocalTime(today, 12, 0, zone).size)
     }
 
+    private fun range(startHour: Int = 9, endHour: Int = 10) = CalendarEditorRange(
+        today.atTime(startHour, 0), today.atTime(endHour, 0), false, ZoneOffset.UTC, ZoneOffset.UTC,
+    )
+
+    @Test fun creationStartDateResetsEndDayAndStartTimeDefaultsToAnHourLater() {
+        val moved = range().copy(end = today.plusDays(5).atTime(12, 0))
+            .startingOn(today.plusDays(2), creating = true)
+        assertEquals(today.plusDays(2).atTime(9, 0), moved.start)
+        assertEquals(today.plusDays(2).atTime(12, 0), moved.end)
+        assertEquals(today.plusDays(2).atTime(16, 30), moved.startingAt(15 * 60 + 30, creating = true).end)
+        val midnight = range().startingAt(23 * 60 + 30, creating = true)
+        assertEquals(today.plusDays(1).atTime(0, 30), midnight.end)
+        assertEquals(today.atTime(13, 0), midnight.startingAt(12 * 60, creating = true).end)
+    }
+
+    @Test fun existingStartsKeepValidEndsAndAdvanceOnlyInvalidEnds() {
+        val initial = range().copy(end = today.plusDays(2).atTime(10, 0))
+        assertEquals(initial.end, initial.startingOn(today.plusDays(1), creating = false).end)
+        assertEquals(initial.end, initial.startingAt(11 * 60, creating = false).end)
+        assertEquals(today.plusDays(3).atTime(10, 0),
+            initial.startingOn(today.plusDays(3), creating = false).end)
+        assertEquals(today.atTime(11, 0), range().startingAt(10 * 60, creating = false).end)
+    }
+
+    @Test fun invalidEndChoicesMoveForwardWithoutMovingStartOrClampingValidOvernightEnds() {
+        val initial = range()
+        val invalidDate = initial.endingOn(today.minusDays(1))
+        assertEquals(initial, invalidDate)
+        assertEquals(initial, initial.endingAt(8 * 60))
+        assertEquals(initial, initial.endingAt(9 * 60))
+        assertEquals(today.atTime(9, 1), initial.endingAt(9 * 60 + 1).end)
+        val overnight = initial.endingOn(today.plusDays(1)).endingAt(2 * 60)
+        assertEquals(today.plusDays(1).atTime(2, 0), overnight.end)
+        assertEquals(initial.start, overnight.start)
+        val movedBack = overnight.endingOn(today)
+        assertEquals(initial, movedBack)
+    }
+
+    @Test fun allDayDateChangesAndTimedToggleKeepRangesOrdered() {
+        val allDay = range(12, 9).copy(allDay = true, end = today.plusDays(2).atTime(9, 0))
+        assertEquals(today.plusDays(1), allDay.startingOn(today.plusDays(1), creating = true).end.toLocalDate())
+        assertEquals(today, allDay.endingOn(today.minusDays(1)).end.toLocalDate())
+        assertEquals(today.plusDays(3), allDay.startingOn(today.plusDays(3), creating = false).end.toLocalDate())
+        val sameDay = allDay.endingOn(today)
+        assertEquals(today.atTime(13, 0), sameDay.copy(allDay = false).ordered().end)
+        assertEquals(allDay, allDay.copy(allDay = false).ordered().copy(allDay = true))
+    }
+
+    @Test fun orderingAndOneHourDefaultsUseInstantsAcrossZonesAndDst() {
+        val newYork = ZoneId.of("America/New_York")
+        val spring = CalendarEditorRange(LocalDate.of(2026, 3, 8).atTime(1, 30),
+            LocalDate.of(2026, 3, 8).atTime(1, 45), false, newYork, newYork)
+        val next = spring.startingAt(90, creating = true)
+        assertEquals(LocalDate.of(2026, 3, 8).atTime(3, 30), next.end)
+        assertEquals(3_600, java.time.Duration.between(next.start.atZone(newYork), next.end.atZone(newYork)).seconds)
+        val differentZones = range().copy(startZone = ZoneOffset.ofHours(-8), endZone = ZoneOffset.ofHours(3))
+        val ordered = differentZones.ordered()
+        assertEquals(today.atTime(21, 0), ordered.end)
+        assertEquals(3_600, java.time.Duration.between(ordered.start.atZone(ordered.startZone),
+            ordered.end.atZone(ordered.endZone)).seconds)
+        assertEquals(ordered, ordered.endingAt(20 * 60))
+    }
+
     @Test fun eventValidationRejectsBlankTitlesAndBadRangesAndAllDayBoundaries() {
         val event = CalendarEvent(1, 2, "Title", null, null, millis(today), millis(today.plusDays(1)),
             true, "UTC", null, null, null, null)
